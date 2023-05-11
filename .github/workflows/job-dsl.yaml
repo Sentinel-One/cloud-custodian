@@ -1,0 +1,9 @@
+---
+name: Update jpaas jobs
+on:
+  push:
+    branches:
+      - job-dsl
+jobs:
+  update-jpaas-jobs:
+    uses: Sentinel-One/github-actions/.github/workflows/job-dsl.yaml@master
