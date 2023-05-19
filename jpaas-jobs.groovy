@@ -109,12 +109,6 @@ multibranchPipelineJob('builds/cloud-custodian-libraries/cloud-custodian/build-l
             buildOriginPRMerge(false)
             // do not build on origin branches PRs
             buildOriginPRHead(true)
-            traits {
-              headWildcardFilter {
-                includes("main release/* feature/* bugfix/*")
-                excludes("")
-             }
-            }
 
         }
     }
