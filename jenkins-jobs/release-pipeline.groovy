@@ -105,7 +105,7 @@ timeout(activity: true, time: 10) {
                                                     withCredentials([usernamePassword(credentialsId: artifactory.getArtifactoryCredId(true), passwordVariable: 'password', usernameVariable: 'username')]) {
                                                         def repoKey = isRelease ? "pypi-dev" : "pypi-sandbox"
                                                         def artifactoryUrl = "${artifactory.getUrl(true)}/artifactory/api/pypi/${repoKey}"
-                                                        sh("export TWINE_USERNAME=${username} && export TWINE_PASSWORD=${password} && twine upload --repository-url ${artifactoryUrl} dist/*")
+                                                        sh("export TWINE_USERNAME=${username} && export TWINE_PASSWORD=${password} && twine upload --repository-url ${artifactoryUrl} --skip-existing dist/*")
                                                     }
                                                     if (isRelease) {
                                                         // the path is /pypi-dev/s1-c7n/<version>/*
