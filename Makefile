@@ -157,3 +157,10 @@ analyzer-semgrep:
 	 tools/c7n_policystream/policystream.py \
 	 tools/c7n_trailcreator/c7n_trailcreator \
 	 c7n
+
+setup-all:
+	poetry install -v
+	poetry install -v --all-extras
+
+build: setup-all
+	poetry build -v
