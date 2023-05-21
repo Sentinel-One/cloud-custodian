@@ -148,7 +148,7 @@ multibranchPipelineJob('builds/cloud-custodian-libraries/cloud-custodian/build-l
     }
     triggers {
         periodicFolderTrigger {
-            interval("1m")
+            interval("20m")
         }
     }
 }
