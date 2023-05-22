@@ -3046,3 +3046,74 @@ class SpecificIamProfileManagedPolicy(ValueFilter):
             if matched_keys:
                 matched.append(r)
         return matched
+
+
+# ############### S1 New Filters- start ##################
+
+@User.filter_registry.register('has-inline-policy-with-statement')
+class IamUserInlinePolicyWithStatement(Filter):
+
+    schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
+    permissions = ('iam:ListUserPolicies', 'iam:GetUserPolicy')
+
+    def _user_inline_policies(self, client, resource, value):
+        user_inline_policies = client.list_user_policies(UserName=resource['UserName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = []
+        for user_inline_policy in user_inline_policies:
+            inline_policy_statement = client.get_user_policy(UserName=resource['UserName'], PolicyName=user_inline_policy)
+            if value.lower == 'n':
+                resource['c7n:InlinePolicies'].append(user_inline_policies)
+                return resource
+            del inline_policy_statement['ResponseMetadata']
+            del inline_policy_statement['UserName']
+            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            r = self._user_inline_policies(c, r, value)
+            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                matched.append(r)
+            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                matched.append(r)
+            elif value == 'Both':
+                matched.append(r)
+        return matched
+
+
+@Group.filter_registry.register('has-inline-policy-with-statement')
+class IamGroupInlinePolicyWithStatement(Filter):
+    schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
+    permissions = ('iam:ListGroupPolicies', 'iam:GetGroupPolicy')
+
+    def _group_inline_policies(self, client, resource, value):
+        group_inline_policies = client.list_group_policies(GroupName=resource['GroupName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = []
+        for inline_policy in group_inline_policies:
+            inline_policy_statement = client.get_group_policy(GroupName=resource['GroupName'], PolicyName=inline_policy)
+            if value.lower == 'n':
+                resource['c7n:InlinePolicies'].append(group_inline_policies)
+                return resource
+            del inline_policy_statement['ResponseMetadata']
+            del inline_policy_statement['GroupName']
+            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            r = self._group_inline_policies(c, r, value)
+            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                matched.append(r)
+            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                matched.append(r)
+            elif value == 'Both':
+                matched.append(r)
+        return matched
+
+# ############### S1 New Filters- end ##################
