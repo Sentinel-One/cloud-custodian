@@ -100,14 +100,10 @@ timeout(activity: true, time: 10) {
                         }
                     } catch (Exception ex) {
                         currentBuild.result = "FAILURE"
-                        if (isRelease) {
-                            slackMe.notifyBuild(currentBuild.result, slackChannelName)
-                        }
+                        slackMe.notifyBuild(currentBuild.result, slackChannelName)
                         throw new Exception(ex)
                     } finally {
-                        if (isRelease) {
-                            slackMe.notifyCustom(currentBuild.result, slackChannelName, "The build is successfully completed with a new release - version ${artVersion}")
-                        }
+                        slackMe.notifyCustom(currentBuild.result, slackChannelName, "The build is successfully completed with a new release - version ${artVersion}")
                     }
                 } // close node
             } // close slave
