@@ -3051,8 +3051,7 @@ class SpecificIamProfileManagedPolicy(ValueFilter):
 # ############### S1 New Filters- start ##################
 
 @User.filter_registry.register('has-inline-policy-with-statement')
-class IamUserInlinePolicyWithStatement(Filter):
-
+class IamUserAttachedInlinePoliciesWithStatement(Filter):
     schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
     permissions = ('iam:ListUserPolicies', 'iam:GetUserPolicy')
 
@@ -3060,7 +3059,8 @@ class IamUserInlinePolicyWithStatement(Filter):
         user_inline_policies = client.list_user_policies(UserName=resource['UserName'])['PolicyNames']
         resource['c7n:InlinePolicies'] = []
         for user_inline_policy in user_inline_policies:
-            inline_policy_statement = client.get_user_policy(UserName=resource['UserName'], PolicyName=user_inline_policy)
+            inline_policy_statement = client.get_user_policy(UserName=resource['UserName'],
+                                                             PolicyName=user_inline_policy)
             if value.lower == 'n':
                 resource['c7n:InlinePolicies'].append(user_inline_policies)
                 return resource
@@ -3084,8 +3084,99 @@ class IamUserInlinePolicyWithStatement(Filter):
         return matched
 
 
+@User.filter_registry.register('has-group-assigned')
+class IamUserAssignedGroups(ValueFilter):
+    schema = type_schema('has-group-assigned', rinherit=ValueFilter.schema)
+    schema_alias = False
+    permissions = ('iam:ListGroupsForUser',)
+
+    def get_user_groups(self, client, user_set):
+        for u in user_set:
+            u['c7n:Groups'] = client.list_groups_for_user(
+                UserName=u['UserName'])['Groups']
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('iam')
+        with self.executor_factory(max_workers=2) as w:
+            futures = []
+            for user_set in chunks(
+                    [r for r in resources if 'c7n:Groups' not in r], size=50):
+                futures.append(
+                    w.submit(self.get_user_groups, client, user_set))
+            for f in as_completed(futures):
+                pass
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            if value == '.*':
+                matched.append(r)
+            else:
+                for p in r.get('c7n:Groups', []):
+                    if self.match(p) and r not in matched:
+                        matched.append(r)
+
+        return matched
+
+
+@User.filter_registry.register('has-policy-attached')
+class IamUserAttachedPolicies(Filter):
+    schema = type_schema('has-policy-attached', value={'type': 'string'})
+    permissions = ('iam:ListAttachedUserPolicies',)
+
+    def _user_policies(self, client, resource):
+        resource['AttachedPolicies'] = client.list_attached_user_policies(
+            UserName=resource['UserName'])['AttachedPolicies']
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        res = []
+        for r in resources:
+            r = self._user_policies(c, r)
+            if len(r['AttachedPolicies']) > 0 and value == 'Y':
+                res.append(r)
+            elif len(r['AttachedPolicies']) == 0 and value == 'N':
+                res.append(r)
+            elif value == 'Both':
+                res.append(r)
+        return res
+
+
+@User.filter_registry.register('has-inline-policy-attached')
+class IamUserAttachedInlinePolicies(Filter):
+    """
+        Filter IAM users that have an inline-policy attached
+
+        Y: Filter users that have an inline-policy
+        N: Filter users that do not have an inline-policy
+    """
+
+    schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
+    permissions = ('iam:ListUserPolicies',)
+
+    def _user_policies(self, client, resource):
+        resource['c7n:InlinePolicies'] = client.list_user_policies(
+            UserName=resource['UserName'])['PolicyNames']
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        res = []
+        for r in resources:
+            r = self._user_policies(c, r)
+            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                res.append(r)
+            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                res.append(r)
+            elif value == 'Both':
+                res.append(r)
+        return res
+
+
 @Group.filter_registry.register('has-inline-policy-with-statement')
-class IamGroupInlinePolicyWithStatement(Filter):
+class IamGroupAttachedInlinePoliciesWithStatement(Filter):
     schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
     permissions = ('iam:ListGroupPolicies', 'iam:GetGroupPolicy')
 
@@ -3116,4 +3207,28 @@ class IamGroupInlinePolicyWithStatement(Filter):
                 matched.append(r)
         return matched
 
-# ############### S1 New Filters- end ##################
+
+@Group.filter_registry.register('has-managed-policy-attached')
+class IamGroupAttachedPolicies(Filter):
+    schema = type_schema('has-managed-policy-attached', value={'type': 'string'})
+    permissions = ('iam:ListAttachedGroupPolicies',)
+
+    def _managed_policies(self, client, resource):
+        policies = client.list_attached_group_policies(
+            GroupName=resource['GroupName'])['AttachedPolicies']
+        resource['AttachedPolicies'] = policies
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        res = []
+        value = self.data.get('value', True)
+        for r in resources:
+            r = self._managed_policies(c, r)
+            if len(r['AttachedPolicies']) > 0 and value == 'Y':
+                res.append(r)
+            elif len(r['AttachedPolicies']) == 0 and value == 'N':
+                res.append(r)
+            elif value == 'Both':
+                res.append(r)
+        return res
