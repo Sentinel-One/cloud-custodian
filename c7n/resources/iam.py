@@ -3316,3 +3316,27 @@ class IamRoleAttachedPolicy(Filter):
         return res
 
 # Role filter #
+
+
+############### Policy filter START #################
+
+@Policy.filter_registry.register('has-policy-details')
+class IAMPolicyDetails(Filter):
+    schema = type_schema('has-policy-details')
+    permissions = ('iam:ListPolicies', 'iam:ListPolicyVersions')
+
+    def _get_policy_document(self, client, resource):
+        document = client.get_policy_version(
+            PolicyArn=resource['Arn'],
+            VersionId=resource['DefaultVersionId']
+        )['PolicyVersion']['Document']
+        resource['PolicyDocument']=document
+        return resource
+
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('iam')
+        results = [self._get_policy_document(client, r) for r in resources]
+        return results
+
+############### Policy filter END #################
