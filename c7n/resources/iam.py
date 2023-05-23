@@ -1119,91 +1119,6 @@ class NoSpecificIamRoleManagedPolicy(Filter):
         return []
 
 
-# ############### begin  CIEM Role filter ##################
-
-@Role.filter_registry.register('has-inline-policy-attached')
-class IamRoleInlinePolicy(Filter):
-    """
-        Filter IAM roles that have an inline-policy attached
-
-        Y: Filter roles that have an inline-policy and attached the policy document
-        N: Filter roles that do not have an inline-policy
-        Both: will not filter but attached inline policy document if any user have it.
-
-    """
-
-    schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
-    permissions = ('iam:ListRolePolicies', 'iam:GetRolePolicy')
-
-    def _role_inline_policies(self, client, resource, value):
-        inlinePolicies = client.list_role_policies(RoleName=resource['RoleName'])['PolicyNames']
-        resource['c7n:InlinePolicies'] = []
-        for inlinePolicy in inlinePolicies:
-            inlinePolicyDocument = client.get_role_policy(RoleName=resource['RoleName'], PolicyName=inlinePolicy)
-            if value.lower == 'n':
-                resource['c7n:InlinePolicies'].append(inlinePolicies)
-                return resource
-            del inlinePolicyDocument['ResponseMetadata']
-            del inlinePolicyDocument['RoleName']
-            resource['c7n:InlinePolicies'].append(inlinePolicyDocument)
-        return resource
-
-    def process(self, resources, event=None):
-        c = local_session(self.manager.session_factory).client('iam')
-        value = self.data.get('value', True)
-        res = []
-        for r in resources:
-            r = self._role_inline_policies(c, r, value)
-            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
-                res.append(r)
-            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
-                res.append(r)
-            elif value == 'Both':
-                res.append(r)
-        return res
-
-
-@Role.filter_registry.register('has-policy-attached')
-class IamRoleAttachedPolicy(Filter):
-    """
-        Filter IAM roles that have an  attached along with policy document
-
-        Y: Filter roles that have an attached-policy
-        N: Filter roles that do not have an attached-policy
-    """
-
-    schema = type_schema('has-policy-attached', value={'type': 'string'})
-    permissions = ('iam:ListAttachedUserPolicies',)
-
-    def _role_managed_policies(self, client, resource, value):
-        attachedPolicies = client.list_attached_role_policies(RoleName=resource['RoleName'])['AttachedPolicies']
-        resource['c7n:AttachedPolicies'] = []
-        if value.lower == 'n':
-            resource['c7n:AttachedPolicies'].append(attachedPolicies)
-            return resource
-        for attachedPolicy in attachedPolicies:
-            resource['c7n:AttachedPolicies'].append(client.get_policy(PolicyArn=attachedPolicy['PolicyArn'])['Policy'])
-        return resource
-
-    def process(self, resources, event=None):
-        c = local_session(self.manager.session_factory).client('iam')
-        value = self.data.get('value', True)
-        res = []
-        for r in resources:
-            r = self._role_managed_policies(c, r, value)
-            if len(r['c7n:AttachedPolicies']) > 0 and value == 'Y':
-                res.append(r)
-            elif len(r['c7n:AttachedPolicies']) == 0 and value == 'N':
-                res.append(r)
-            elif value == 'Both':
-                res.append(r)
-        return res
-
-
-# ################# end CIEM Role filter ###############
-
-
-
 @Role.action_registry.register('set-policy')
 class SetPolicy(BaseAction):
     """Set a specific IAM policy as attached or detached on a role.
@@ -3317,3 +3232,85 @@ class IamGroupAttachedPolicies(Filter):
             elif value == 'Both':
                 res.append(r)
         return res
+
+    # Role filter #
+
+    @Role.filter_registry.register('has-inline-policy-attached')
+    class IamRoleInlinePolicy(Filter):
+        """
+            Filter IAM roles that have an inline-policy attached
+
+            Y: Filter roles that have an inline-policy and attached the policy document
+            N: Filter roles that do not have an inline-policy
+            Both: will not filter but attached inline policy document if any user have it.
+
+        """
+
+        schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
+        permissions = ('iam:ListRolePolicies', 'iam:GetRolePolicy')
+
+        def _role_inline_policies(self, client, resource, value):
+            inline_policies = client.list_role_policies(RoleName=resource['RoleName'])['PolicyNames']
+            resource['c7n:InlinePolicies'] = []
+            for inlinePolicy in inline_policies:
+                inline_policy_document = client.get_role_policy(RoleName=resource['RoleName'], PolicyName=inlinePolicy)
+                if value.lower == 'n':
+                    resource['c7n:InlinePolicies'].append(inline_policies)
+                    return resource
+                del inline_policy_document['ResponseMetadata']
+                del inline_policy_document['RoleName']
+                resource['c7n:InlinePolicies'].append(inline_policy_document)
+            return resource
+
+        def process(self, resources, event=None):
+            c = local_session(self.manager.session_factory).client('iam')
+            value = self.data.get('value', True)
+            res = []
+            for r in resources:
+                r = self._role_inline_policies(c, r, value)
+                if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                    res.append(r)
+                elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                    res.append(r)
+                elif value == 'Both':
+                    res.append(r)
+            return res
+
+    @Role.filter_registry.register('has-policy-attached')
+    class IamRoleAttachedPolicy(Filter):
+        """
+            Filter IAM roles that have an  attached along with policy document
+
+            Y: Filter roles that have an attached-policy
+            N: Filter roles that do not have an attached-policy
+        """
+
+        schema = type_schema('has-policy-attached', value={'type': 'string'})
+        permissions = ('iam:ListAttachedUserPolicies',)
+
+        def _role_managed_policies(self, client, resource, value):
+            attached_policies = client.list_attached_role_policies(RoleName=resource['RoleName'])['AttachedPolicies']
+            resource['c7n:AttachedPolicies'] = []
+            if value.lower == 'n':
+                resource['c7n:AttachedPolicies'].append(attached_policies)
+                return resource
+            for attached_policy in attached_policies:
+                resource['c7n:AttachedPolicies'].append(
+                    client.get_policy(PolicyArn=attached_policy['PolicyArn'])['Policy'])
+            return resource
+
+        def process(self, resources, event=None):
+            c = local_session(self.manager.session_factory).client('iam')
+            value = self.data.get('value', True)
+            res = []
+            for r in resources:
+                r = self._role_managed_policies(c, r, value)
+                if len(r['c7n:AttachedPolicies']) > 0 and value == 'Y':
+                    res.append(r)
+                elif len(r['c7n:AttachedPolicies']) == 0 and value == 'N':
+                    res.append(r)
+                elif value == 'Both':
+                    res.append(r)
+            return res
+
+    # Role filter #
