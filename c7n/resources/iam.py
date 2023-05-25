@@ -3050,6 +3050,16 @@ class SpecificIamProfileManagedPolicy(ValueFilter):
 
 # ############### S1 New Filters- start ##################
 
+def generate_inline_policy_id(r, name):
+    inline_policies = r['c7n:InlinePolicies']
+    index = 0
+    for inline_policy in inline_policies:
+        inline_policies[index] = name + '-' + inline_policy
+        index = index + 1
+
+# ############### S1 User Filters- start ##################
+
+
 @User.filter_registry.register('has-inline-policy-with-statement')
 class IamUserAttachedInlinePoliciesWithStatement(Filter):
     schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
@@ -3166,15 +3176,21 @@ class IamUserAttachedInlinePolicies(Filter):
         res = []
         for r in resources:
             r = self._user_policies(c, r)
+            user_name = r['UserName']
             if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                generate_inline_policy_id(r, user_name)
                 res.append(r)
             elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
                 res.append(r)
             elif value == 'Both':
+                generate_inline_policy_id(r, user_name)
                 res.append(r)
         return res
 
 
+# ############### S1 User Filters- end ##################
+
+# ############### S1 Group Filters- start ##################
 @Group.filter_registry.register('has-inline-policy-with-statement')
 class IamGroupAttachedInlinePoliciesWithStatement(Filter):
     schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
@@ -3233,10 +3249,47 @@ class IamGroupAttachedPolicies(Filter):
                 res.append(r)
         return res
 
-# Role filter #
+
+@Group.filter_registry.register('has-inline-policy-attached')
+class IamGroupAttachedInlinePolicies(Filter):
+    """
+        Filter IAM users that have an inline-policy attached
+
+        Y: Filter users that have an inline-policy
+        N: Filter users that do not have an inline-policy
+    """
+
+    schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
+    permissions = ('iam:ListGroupPolicies',)
+
+    def _group_policies(self, client, resource):
+        resource['c7n:InlinePolicies'] = client.list_group_policies(
+            GroupName=resource['GroupName'])['PolicyNames']
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        res = []
+        for r in resources:
+            r = self._group_policies(c, r)
+            group_name = r['GroupName']
+            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                generate_inline_policy_id(r, group_name)
+                res.append(r)
+            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                res.append(r)
+            elif value == 'Both':
+                generate_inline_policy_id(r, group_name)
+                res.append(r)
+        return res
+
+# ############### S1 Group Filters- end ##################
+
+# ############### S1 Role Filters- START ##################
 
 
-@Role.filter_registry.register('has-inline-policy-attached')
+@Role.filter_registry.register('has-inline-policy-with-statement')
 class IamRoleInlinePolicy(Filter):
     """
         Filter IAM roles that have an inline-policy attached
@@ -3247,7 +3300,7 @@ class IamRoleInlinePolicy(Filter):
 
     """
 
-    schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
+    schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
     permissions = ('iam:ListRolePolicies', 'iam:GetRolePolicy')
 
     def _role_inline_policies(self, client, resource, value):
@@ -3315,10 +3368,39 @@ class IamRoleAttachedPolicy(Filter):
                 res.append(r)
         return res
 
-# Role filter #
+
+@Role.filter_registry.register('has-inline-policy-attached')
+class IamRoleAttachedInlinePolicies(Filter):
+
+    schema = type_schema('has-inline-policy-attached', value={'type': 'string'})
+    permissions = ('iam:ListRolePolicies',)
+
+    def _role_policies(self, client, resource):
+        resource['c7n:InlinePolicies'] = client.list_role_policies(
+            RoleName=resource['RoleName'])['PolicyNames']
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        res = []
+        for r in resources:
+            r = self._role_policies(c, r)
+            role_name = r['RoleName']
+            if len(r['c7n:InlinePolicies']) > 0 and value == 'Y':
+                generate_inline_policy_id(r, role_name)
+                res.append(r)
+            elif len(r['c7n:InlinePolicies']) == 0 and value == 'N':
+                res.append(r)
+            elif value == 'Both':
+                generate_inline_policy_id(r, role_name)
+                res.append(r)
+        return res
+
+# ############### S1 Role Filters- END ##################
 
 
-############### Policy filter START #################
+# ############### S1 Policy Filters- START ##################
 
 @Policy.filter_registry.register('has-policy-details')
 class IAMPolicyDetails(Filter):
@@ -3333,10 +3415,9 @@ class IAMPolicyDetails(Filter):
         resource['PolicyDocument']=document
         return resource
 
-
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
         results = [self._get_policy_document(client, r) for r in resources]
         return results
 
-############### Policy filter END #################
+# ############### S1 Policy Filters- END ##################
