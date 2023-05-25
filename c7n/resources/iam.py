@@ -3188,6 +3188,38 @@ class IamUserAttachedInlinePolicies(Filter):
         return res
 
 
+@User.filter_registry.register('user-inline-policy')
+class IamUserInlinePolicies(Filter):
+    schema = type_schema('user-inline-policy')
+    permissions = ('iam:ListUserPolicies', 'iam:GetUserPolicy')
+
+    def _user_inline_policies(self, client, resource, value):
+        user_inline_policies = client.list_user_policies(UserName=resource['UserName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = []
+        for user_inline_policy in user_inline_policies:
+            inline_policy_statement = client.get_user_policy(UserName=resource['UserName'],
+                                                             PolicyName=user_inline_policy)
+            del inline_policy_statement['ResponseMetadata']
+            del inline_policy_statement['UserName']
+            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            r = self._user_inline_policies(c, r, value)
+            user_name = r['UserName']
+            if len(r['c7n:InlinePolicies']) > 0:
+                inline_policies = r['c7n:InlinePolicies']
+                for inline_policy in inline_policies:
+                    policy_id = user_name + '-' + inline_policy['PolicyName']
+                    inline_policy['PolicyId'] = policy_id
+                    matched.append(inline_policy)
+        return matched
+
+
 # ############### S1 User Filters- end ##################
 
 # ############### S1 Group Filters- start ##################
@@ -3283,6 +3315,40 @@ class IamGroupAttachedInlinePolicies(Filter):
                 generate_inline_policy_id(r, group_name)
                 res.append(r)
         return res
+
+
+@Group.filter_registry.register('group-inline-policy')
+class IamGroupInlinePolicies(Filter):
+    schema = type_schema('group-inline-policy')
+    permissions = ('iam:ListGroupPolicies', 'iam:GetGroupPolicy')
+
+    def _group_inline_policies(self, client, resource, value):
+        group_inline_policies = client.list_group_policies(GroupName=resource['GroupName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = []
+        for group_inline_policy in group_inline_policies:
+            inline_policy_statement = client.get_group_policy(GroupName=resource['GroupName'],
+                                                              PolicyName=group_inline_policy)
+            del inline_policy_statement['ResponseMetadata']
+            del inline_policy_statement['GroupName']
+            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            r = self._group_inline_policies(c, r, value)
+            group_name = r['GroupName']
+            if len(r['c7n:InlinePolicies']) > 0:
+                inline_policies = r['c7n:InlinePolicies']
+                index = 0
+                for inline_policy in inline_policies:
+                    policy_id = group_name + '-' + inline_policy['PolicyName']
+                    inline_policy['PolicyId'] = policy_id
+                    matched.append(inline_policy)
+        return matched
+
 
 # ############### S1 Group Filters- end ##################
 
@@ -3396,6 +3462,40 @@ class IamRoleAttachedInlinePolicies(Filter):
                 generate_inline_policy_id(r, role_name)
                 res.append(r)
         return res
+
+
+@Role.filter_registry.register('role-inline-policy')
+class IamRoleInlinePolicies(Filter):
+    schema = type_schema('role-inline-policy')
+    permissions = ('iam:ListRolePolicies', 'iam:GetRolePolicy')
+
+    def _role_inline_policies(self, client, resource, value):
+        role_inline_policies = client.list_role_policies(RoleName=resource['RoleName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = []
+        for role_inline_policy in role_inline_policies:
+            inline_policy_statement = client.get_role_policy(RoleName=resource['RoleName'],
+                                                             PolicyName=role_inline_policy)
+            del inline_policy_statement['ResponseMetadata']
+            del inline_policy_statement['RoleName']
+            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+        return resource
+
+    def process(self, resources, event=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        value = self.data.get('value', True)
+        matched = []
+        for r in resources:
+            r = self._role_inline_policies(c, r, value)
+            role_name = r['RoleName']
+            if len(r['c7n:InlinePolicies']) > 0:
+                inline_policies = r['c7n:InlinePolicies']
+                index = 0
+                for inline_policy in inline_policies:
+                    policy_id = role_name + '-' + inline_policy['PolicyName']
+                    inline_policy['PolicyId'] = policy_id
+                    matched.append(inline_policy)
+        return matched
+
 
 # ############### S1 Role Filters- END ##################
 
