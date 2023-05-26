@@ -3216,6 +3216,7 @@ class IamUserInlinePolicies(Filter):
                 for inline_policy in inline_policies:
                     policy_id = user_name + '-' + inline_policy['PolicyName']
                     inline_policy['PolicyId'] = policy_id
+                    inline_policy['Type'] = "User Inline"
                     matched.append(inline_policy)
         return matched
 
@@ -3346,6 +3347,7 @@ class IamGroupInlinePolicies(Filter):
                 for inline_policy in inline_policies:
                     policy_id = group_name + '-' + inline_policy['PolicyName']
                     inline_policy['PolicyId'] = policy_id
+                    inline_policy['Type'] = "Group Inline"
                     matched.append(inline_policy)
         return matched
 
@@ -3493,6 +3495,7 @@ class IamRoleInlinePolicies(Filter):
                 for inline_policy in inline_policies:
                     policy_id = role_name + '-' + inline_policy['PolicyName']
                     inline_policy['PolicyId'] = policy_id
+                    inline_policy['Type'] = "Role Inline"
                     matched.append(inline_policy)
         return matched
 
