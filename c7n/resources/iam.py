@@ -3522,6 +3522,25 @@ class AssumeRolePolicyIdFilter(Filter):
                 return
 
 
+@Role.filter_registry.register('assume-role-policy-document-only')
+class AssumeRolePolicyIdFilter(Filter):
+    schema = type_schema('assume-role-policy-document-only')
+    permissions = ('iam:GetRole',)
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            assume_role_policy_doc = self.get_assume_role_policy_document(r)
+            res.append(assume_role_policy_doc)
+        return res
+
+    def get_assume_role_policy_document(self, r):
+        assume_role_policy_doc = r['AssumeRolePolicyDocument']
+        assume_role_policy_doc['AssumeRolePolicyName'] = r['RoleName'] + '-' + 'AssumeRolePolicy'
+        assume_role_policy_doc['AssumeRolePolicyId'] = r['RoleName'] + '-' + 'AssumeRolePolicy'
+        return assume_role_policy_doc
+
+
 # ############### S1 Role Filters- END ##################
 
 
