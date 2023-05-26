@@ -3497,6 +3497,31 @@ class IamRoleInlinePolicies(Filter):
         return matched
 
 
+@Role.filter_registry.register('assume-role-policy-id-only')
+class AssumeRolePolicyIdFilter(Filter):
+    schema = type_schema('assume-role-policy-id-only', value={'type': 'string'})
+    permissions = ('iam:GetRole',)
+
+    def process(self, resources, event=None):
+        value = self.data.get('value', True)
+        res = []
+        for r in resources:
+            self.generate_assume_role_policy_id(r, value)
+            res.append(r)
+        return res
+
+    def generate_assume_role_policy_id(self,r, value):
+        assume_role_policy_doc = r['AssumeRolePolicyDocument']
+        if bool(assume_role_policy_doc):
+            if value.lower() == 'n':
+                return
+            r['AssumeRolePolicyName'] = r['RoleName'] + '-' + 'AssumeRolePolicy'
+            if value.lower() == 'y':
+                del r['AssumeRolePolicyDocument']
+            if value.lower() == 'both':
+                return
+
+
 # ############### S1 Role Filters- END ##################
 
 
