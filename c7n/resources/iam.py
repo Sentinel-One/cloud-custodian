@@ -3547,10 +3547,31 @@ class AssumeRolePolicyIdFilter(Filter):
 # ############### S1 Role Filters- END ##################
 
 
-# ############### S1 Policy Filters- START ##################
+############### Policy filter START #################
+@resources.register('iam-aws-policy')
+class PolicyAWS(QueryResourceManager):
 
-@Policy.filter_registry.register('has-policy-details')
-class IAMPolicyDetails(Filter):
+    class resource_type(TypeInfo):
+        service = 'iam'
+        arn_type = 'policy'
+        enum_spec = ('list_policies', 'Policies', {'Scope': 'AWS'})
+        id = 'PolicyId'
+        name = 'PolicyName'
+        date = 'CreateDate'
+        cfn_type = config_type = "AWS::IAM::Policy"
+        # Denotes this resource type exists across regions
+        global_resource = True
+        arn = 'Arn'
+        universal_taggable = object()
+
+    source_mapping = {
+        'describe': DescribePolicy,
+        'config': ConfigSource
+    }
+
+
+@PolicyAWS.filter_registry.register('has-policy-details')
+class IAMAWSPolicyDetails(Filter):
     schema = type_schema('has-policy-details')
     permissions = ('iam:ListPolicies', 'iam:ListPolicyVersions')
 
@@ -3560,11 +3581,34 @@ class IAMPolicyDetails(Filter):
             VersionId=resource['DefaultVersionId']
         )['PolicyVersion']['Document']
         resource['PolicyDocument']=document
+        resource['Type']='AWS managed'
         return resource
+
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
         results = [self._get_policy_document(client, r) for r in resources]
         return results
 
-# ############### S1 Policy Filters- END ##################
+
+@Policy.filter_registry.register('has-policy-details')
+class IAMLocalPolicyDetails(Filter):
+    schema = type_schema('has-policy-details')
+    permissions = ('iam:ListPolicies', 'iam:ListPolicyVersions')
+
+    def _get_policy_document(self, client, resource):
+        document = client.get_policy_version(
+            PolicyArn=resource['Arn'],
+            VersionId=resource['DefaultVersionId']
+        )['PolicyVersion']['Document']
+        resource['PolicyDocument']=document
+        resource['Type']='Customer managed'
+        return resource
+
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('iam')
+        results = [self._get_policy_document(client, r) for r in resources]
+        return results
+
+############### Policy filter END #################
