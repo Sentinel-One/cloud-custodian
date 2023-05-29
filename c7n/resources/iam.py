@@ -3199,9 +3199,9 @@ class IamUserInlinePolicies(Filter):
         for user_inline_policy in user_inline_policies:
             inline_policy_statement = client.get_user_policy(UserName=resource['UserName'],
                                                              PolicyName=user_inline_policy)
-            del inline_policy_statement['ResponseMetadata']
-            del inline_policy_statement['UserName']
-            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+            inline_policy = {'PolicyName': inline_policy_statement['PolicyName'],
+                             'PolicyDocument': json.dumps(inline_policy_statement['PolicyDocument'])}
+            resource['c7n:InlinePolicies'].append(inline_policy)
         return resource
 
     def process(self, resources, event=None):
@@ -3329,9 +3329,9 @@ class IamGroupInlinePolicies(Filter):
         for group_inline_policy in group_inline_policies:
             inline_policy_statement = client.get_group_policy(GroupName=resource['GroupName'],
                                                               PolicyName=group_inline_policy)
-            del inline_policy_statement['ResponseMetadata']
-            del inline_policy_statement['GroupName']
-            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+            inline_policy = {'PolicyName': inline_policy_statement['PolicyName'],
+                             'PolicyDocument': json.dumps(inline_policy_statement['PolicyDocument'])}
+            resource['c7n:InlinePolicies'].append(inline_policy)
         return resource
 
     def process(self, resources, event=None):
@@ -3498,9 +3498,9 @@ class IamRoleInlinePolicies(Filter):
         for role_inline_policy in role_inline_policies:
             inline_policy_statement = client.get_role_policy(RoleName=resource['RoleName'],
                                                              PolicyName=role_inline_policy)
-            del inline_policy_statement['ResponseMetadata']
-            del inline_policy_statement['RoleName']
-            resource['c7n:InlinePolicies'].append(inline_policy_statement)
+            inline_policy = {'PolicyName': inline_policy_statement['PolicyName'],
+                             'PolicyDocument': json.dumps(inline_policy_statement['PolicyDocument'])}
+            resource['c7n:InlinePolicies'].append(inline_policy)
         return resource
 
     def process(self, resources, event=None):
