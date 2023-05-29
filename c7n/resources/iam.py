@@ -3352,6 +3352,27 @@ class IamGroupInlinePolicies(Filter):
         return matched
 
 
+@Group.filter_registry.register('user-attached-only')
+class IamGroupAttachedUsers(Filter):
+
+    schema = type_schema('user-attached')
+    permissions = ('iam:GetGroup',)
+
+    def get_user_ids(self, client, resource):
+        users = client.get_group(GroupName=resource['GroupName'])['Users']
+        user_ids = []
+        for user in users:
+            user_ids.append(user['UserId'])
+        return user_ids
+
+    def process(self, resources, events=None):
+        c = local_session(self.manager.session_factory).client('iam')
+        for r in resources:
+            user_ids = self.get_user_ids(c, r)
+            r['c7n:users'] = user_ids
+        return resources
+
+
 # ############### S1 Group Filters- end ##################
 
 # ############### S1 Role Filters- START ##################
