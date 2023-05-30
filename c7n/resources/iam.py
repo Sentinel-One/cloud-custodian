@@ -3606,7 +3606,7 @@ class IAMAWSPolicyDetails(Filter):
             PolicyArn=resource['Arn'],
             VersionId=resource['DefaultVersionId']
         )['PolicyVersion']['Document']
-        resource['PolicyDocument']=document
+        resource['PolicyDocument']=json.dumps(document)
         resource['Type']='AWS managed'
         return resource
 
@@ -3626,7 +3626,7 @@ class IAMLocalPolicyDetails(Filter):
             PolicyArn=resource['Arn'],
             VersionId=resource['DefaultVersionId']
         )['PolicyVersion']['Document']
-        resource['PolicyDocument']=document
+        resource['PolicyDocument']=json.dumps(document)
         resource['Type']='Customer managed'
         return resource
 
