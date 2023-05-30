@@ -3530,20 +3530,25 @@ class AssumeRolePolicyIdFilter(Filter):
         value = self.data.get('value', True)
         res = []
         for r in resources:
-            self.generate_assume_role_policy_id(r, value)
-            res.append(r)
+           res1 = self.generate_assume_role_policy_id(r, value)
+           res.append(res1)
         return res
 
-    def generate_assume_role_policy_id(self,r, value):
+    def generate_assume_role_policy_id(self, r, value):
         assume_role_policy_doc = r['AssumeRolePolicyDocument']
         if bool(assume_role_policy_doc):
             if value.lower() == 'n':
-                return
+                return r
             r['AssumeRolePolicyName'] = r['RoleName'] + '-' + 'AssumeRolePolicy'
             if value.lower() == 'y':
                 del r['AssumeRolePolicyDocument']
+                return r
             if value.lower() == 'both':
-                return
+                resp = {'PolicyId': r['AssumeRolePolicyName'], 'PolicyName': r['AssumeRolePolicyName'],
+                        'PolicyDocument': json.dumps(r['AssumeRolePolicyDocument']),
+                        'MaxSessionDuration': r['MaxSessionDuration'], 'RoleLastUsed': r['RoleLastUsed'],
+                        'Type': 'Assume Role'}
+                return resp
 
 
 @Role.filter_registry.register('assume-role-policy-document-only')
