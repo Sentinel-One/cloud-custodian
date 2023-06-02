@@ -3221,6 +3221,81 @@ class IamUserInlinePolicies(Filter):
         return matched
 
 
+@User.filter_registry.register('access-key-details')
+class UserAccessKeyDetails(ValueFilter):
+    schema = type_schema('access-key-details')
+    schema_alias = False
+    permissions = ('iam:ListAccessKeys',)
+    annotation_key = 'c7n:AccessKeys'
+    annotate = False
+
+    def get_user_keys(self, client, user_set):
+        for u in user_set:
+            u[self.annotation_key] = self.manager.retry(
+                client.list_access_keys,
+                UserName=u['UserName'])['AccessKeyMetadata']
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('iam')
+        with self.executor_factory(max_workers=2) as w:
+            augment_set = [r for r in resources if self.annotation_key not in r]
+            self.log.debug(
+                "Querying %d users' api keys" % len(augment_set))
+            list(w.map(
+                functools.partial(self.get_user_keys, client),
+                chunks(augment_set, 50)))
+
+        matched = []
+        for r in resources:
+            access_keys = r['c7n:AccessKeys']
+            index = 0
+            while index < len(access_keys):
+                access_key = access_keys[index]
+                credential_report_access_key = r['c7n:credential-report']['access_keys'][index]
+                access_key_merged = {**access_key, **credential_report_access_key}
+                index = index + 1
+                matched.append(access_key_merged)
+        return matched
+
+
+@User.filter_registry.register('access-key-id')
+class UserAccessKeyId(ValueFilter):
+    schema = type_schema('access-key-id')
+    schema_alias = False
+    permissions = ('iam:ListAccessKeys',)
+    annotation_key = 'c7n:AccessKeys'
+    annotate = False
+
+    def get_user_keys(self, client, user_set):
+        for u in user_set:
+            u[self.annotation_key] = self.manager.retry(
+                client.list_access_keys,
+                UserName=u['UserName'])['AccessKeyMetadata']
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('iam')
+        with self.executor_factory(max_workers=2) as w:
+            augment_set = [r for r in resources if self.annotation_key not in r]
+            self.log.debug(
+                "Querying %d users' api keys" % len(augment_set))
+            list(w.map(
+                functools.partial(self.get_user_keys, client),
+                chunks(augment_set, 50)))
+
+        matched = []
+        for r in resources:
+            r['c7n:credential-report']['access_keys'] = []
+            del r['c7n:credential-report']['access_keys']
+            access_keys = r['c7n:AccessKeys']
+            access_key_ids = []
+            for access_key in access_keys:
+                access_key_ids.append(access_key['AccessKeyId'])
+            r['c7n:AccessKeys'] = []
+            r['c7n:AccessKeys'] = access_key_ids
+            matched.append(r)
+        return matched
+
+
 # ############### S1 User Filters- end ##################
 
 # ############### S1 Group Filters- start ##################
