@@ -3286,6 +3286,9 @@ class UserAccessKeyId(ValueFilter):
         for r in resources:
             r['c7n:credential-report']['access_keys'] = []
             del r['c7n:credential-report']['access_keys']
+            del r['c7n:credential-report']['user']
+            del r['c7n:credential-report']['arn']
+            del r['c7n:credential-report']['user_creation_time']
             access_keys = r['c7n:AccessKeys']
             access_key_ids = []
             for access_key in access_keys:
@@ -3295,10 +3298,11 @@ class UserAccessKeyId(ValueFilter):
             matched.append(r)
         return matched
 
-
 # ############### S1 User Filters- end ##################
 
 # ############### S1 Group Filters- start ##################
+
+
 @Group.filter_registry.register('has-inline-policy-with-statement')
 class IamGroupAttachedInlinePoliciesWithStatement(Filter):
     schema = type_schema('has-inline-policy-with-statement', value={'type': 'string'})
