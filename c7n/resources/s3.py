@@ -3469,3 +3469,39 @@ class BucketOwnershipControls(BucketFilterBase, ValueFilter):
                 raise
             controls = {}
         b[self.annotation_key] = controls.get('OwnershipControls')
+
+
+###################### S1 New Filters - Start ######################################
+
+@filters.register('bucket-acl')
+class BucketAclFilter(Filter):
+    """Filters for all S3 buckets ACL and their grants
+
+    :example:
+    policies:
+      - name: bucket-acl
+        resource: aws.s3
+        region: us-east-1
+        filters:
+         - type: bucket-acl
+
+    """
+
+    schema = type_schema('bucket-acl')
+
+    def process(self, buckets, event=None):
+        with self.executor_factory(max_workers=5) as w:
+            results = w.map(self.process_bucket, buckets)
+            results = list(filter(None, list(results)))
+            return results
+
+    def process_bucket(self, b):
+        bucket_name = b['Name']
+        acl = b.get('Acl', {'Grants': []})
+        if not acl or not acl['Grants']:
+            return
+
+        return {
+            "bucket_name": bucket_name,
+            "acl": acl
+        }
