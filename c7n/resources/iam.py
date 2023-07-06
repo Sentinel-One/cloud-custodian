@@ -3649,6 +3649,40 @@ class AssumeRolePolicyIdFilter(Filter):
         return assume_role_policy_doc
 
 
+@Role.filter_registry.register('role-permission-set')
+class RolePermissionSet(Filter):
+    schema = type_schema('role-permission-set')
+    permissions = ('iam:GetRole',)
+
+    def process(self, resources, event=None):
+        filtered_roles = []
+        client = local_session(self.manager.session_factory).client('sso-admin')
+
+        for role in resources:
+            path: str = role["Path"]
+            if path and path.startswith("/aws-reserved/sso.amazonaws.com"):
+                filtered_roles.append(self.get_role_permission_set(role, client))
+
+        return filtered_roles
+
+    def get_role_permission_set(self, role, c):
+        permission_set_name = str.split(role["RoleName"], "_")[1]
+
+        instances = c.list_instances()
+        ps_e = {}
+        for instance in instances["Instances"]:
+            ps_list = c.list_permission_sets(InstanceArn=instance["InstanceArn"])
+            for ps in ps_list["PermissionSets"]:
+                detailed_ps = c.describe_permission_set(InstanceArn=instance["InstanceArn"], PermissionSetArn=ps)
+                if str.__eq__(detailed_ps["PermissionSet"]["Name"], permission_set_name):
+                    ps_e = (detailed_ps["PermissionSet"])
+
+        return {
+            "role_arn": role["Arn"],
+            "role_name": role["RoleName"],
+            "role_permission_set": ps_e,
+        }
+
 # ############### S1 Role Filters- END ##################
 
 
