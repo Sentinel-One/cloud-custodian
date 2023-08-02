@@ -10,6 +10,7 @@ from c7n.utils import (
 
 POLICY_ID = 'Arn'
 
+
 class DescribeSCP(DescribeSource):
 
     def resources(self, query=None):
@@ -68,7 +69,7 @@ class IncludeOrganizationPolicyStatements(Filter):
     permissions = ('org:describePolicies',)
 
     def _include_policies(self, client, resource):
-        policy_id = resource['Id'];
+        policy_id = resource['Id']
         policies = client.describe_policy(PolicyId=policy_id)
         if len(policies) > 0 and policies['Policy'] is not None:
             return (policies['Policy'])['Content']
@@ -154,7 +155,6 @@ class IncludeParentHierarchyFilter(Filter):
 
 @OrgAccounts.filter_registry.register('include-attached-policy')
 class IncludeAttachedPolicyFilter(Filter):
-
     schema = type_schema('include-attached-policy', value={'type': 'boolean'})
     permissions = ('org:list_policies_for_target',)
 
@@ -163,7 +163,7 @@ class IncludeAttachedPolicyFilter(Filter):
         if len(result['Policies']) > 0 and result['Policies'] is not None:
             return result['Policies']
 
-    def get_attached_policy_arns(self, policies):
+    def get_attached_policy_arns(self, policies) -> set:
         policy_arns = set()
         for policy in policies:
             policy_arns.add(policy[POLICY_ID])
@@ -188,9 +188,9 @@ class IncludeInheritedPolicyFilter(Filter):
     schema = type_schema('include-inherited-policy', value={'type': 'boolean'})
     permissions = ('org:list_policies_for_target',)
 
-    def get_all_inherited_policies(self, client, TargetIds='set'):
+    def get_all_inherited_policies(self, client, target_ids='set') -> dict:
         policy_dictionary = dict()
-        for target_id in TargetIds:
+        for target_id in target_ids:
             result = client.list_policies_for_target(TargetId=target_id, Filter='SERVICE_CONTROL_POLICY')
             policies = result['Policies']
             if len(policies) > 0 and policies is not None:
@@ -203,7 +203,7 @@ class IncludeInheritedPolicyFilter(Filter):
         if not value:
             return resources
         parent_ids = self.get_all_parents_ids(resources)
-        policy_dictionary = self.get_all_inherited_policies(c, parent_ids)
+        policy_dictionary = self.get_all_inherited_policies(c, target_ids=parent_ids)
         result = []
         for r in resources:
             inherited_policy_arns = self.get_all_inherited_policy_arns(r, policy_dictionary)
@@ -211,13 +211,13 @@ class IncludeInheritedPolicyFilter(Filter):
             result.append(r)
         return result
 
-    def get_all_parents_ids(self, resources):
+    def get_all_parents_ids(self, resources) -> set:
         parent_ids = set()
         for r in resources:
             parent_ids.update(r['parents'])
         return parent_ids
 
-    def get_all_inherited_policy_arns(self, r, policy_dictionary='dict'):
+    def get_all_inherited_policy_arns(self, r, policy_dictionary='dict') -> set:
         inherited_policy_arns = set()
         for parent in r['parents']:
             policies = policy_dictionary[parent]
