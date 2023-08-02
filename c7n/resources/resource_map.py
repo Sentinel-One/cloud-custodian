@@ -150,6 +150,7 @@ ResourceMap = {
     "aws.elastic-ip": "c7n.resources.vpc.NetworkAddress",
     "aws.network-addr": "c7n.resources.vpc.NetworkAddress",
     "aws.org-scp": "c7n.resources.organizations.SCPPolicies",
+    "aws.org-account": "c7n.resources.organizations.SCPAccounts",
     "aws.ops-item": "c7n.resources.ssm.OpsItem",
     "aws.opswork-cm": "c7n.resources.opsworks.OpsworksCM",
     "aws.opswork-stack": "c7n.resources.opsworks.OpsworkStack",
