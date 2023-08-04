@@ -225,3 +225,111 @@ class IncludeInheritedPolicyFilter(Filter):
                 for policy in policies:
                     inherited_policy_arns.add(policy[POLICY_ID])
         return inherited_policy_arns
+
+
+@resources.register('org-unit')
+class OrganizationalUnits(query.QueryResourceManager):
+    class resource_type(query.TypeInfo):
+        service = 'organizations'
+        enum_spec = ('list_roots', 'Roots', None)
+        cfn_type = config_type = "AWS::Organizations::Roots"
+        global_resource = True
+        arn = 'Arn'
+
+    source_mapping = {
+        'config': query.ConfigSource
+    }
+
+
+@OrganizationalUnits.filter_registry.register('include-all-children')
+class IncludeAllChildFilter(Filter):
+    schema = type_schema('include-all-children', value={'type': 'boolean'})
+
+    permissions = ('org:list_organizational_units_for_parent',)
+
+    def get_organizational_units_for_parent(self, client, parent_id):
+        result = client.list_organizational_units_for_parent(ParentId=parent_id)
+        return result['OrganizationalUnits']
+
+    def process(self, output, event=None):
+        c = local_session(self.manager.session_factory).client('organizations')
+        value = self.data.get('value', True)
+        if not value:
+            return output
+        result = []
+        for r in output:
+            organization_units = self.get_organizational_units_for_parent(c, r['Id'])
+            self.add_ou_to_result(organization_units, r)
+            self.get_ou_hierarchy(c,organization_units, result)
+            result.append(r)
+        return result
+
+    def get_ou_hierarchy(self,client, organization_units, result):
+        for organization_unit in organization_units:
+            result.append(organization_unit)
+            new_organization_units = self.get_organizational_units_for_parent(client,organization_unit['Id'])
+            self.add_ou_to_result(new_organization_units, organization_unit)
+            if len(new_organization_units) > 0 and new_organization_units is not None:
+                self.get_ou_hierarchy(client, new_organization_units, result)
+
+    def add_ou_to_result(self, organization_units, r):
+        children = set()
+        if len(organization_units) > 0 and organization_units is not None:
+            for ou in organization_units:
+                children.add(ou['Id'])
+            r['child_organization_units'] = list(children)
+        return children
+
+
+@OrganizationalUnits.filter_registry.register('include-all-account')
+class IncludeAllAccountsFilter(Filter):
+    schema = type_schema('include-all-account', value={'type': 'boolean'})
+
+    permissions = ('org:list_accounts_for_parent',)
+
+    def get_accounts(self, client, resource):
+        result = client.list_accounts_for_parent(ParentId=resource['Id'])
+        return result['Accounts']
+
+    def process(self, output, event=None):
+        c = local_session(self.manager.session_factory).client('organizations')
+        value = self.data.get('value', True)
+        if not value:
+            return output
+        result = []
+        for r in output:
+            accounts = self.get_accounts(c, r)
+            if len(accounts) > 0 and accounts is not None:
+                children = set()
+                for account in accounts:
+                    children.add(account['Id'])
+                r['child_accounts'] = list(children)
+            result.append(r)
+        return result
+
+
+@OrganizationalUnits.filter_registry.register('include-attached-policy')
+class IncludeAttachedSCPPolicyFilter(Filter):
+    schema = type_schema('include-attached-policy', value={'type': 'boolean'})
+
+    permissions = ('org:list_accounts_for_parent',)
+
+    def get_attached_scp_policy(self, client, resource):
+        result = client.list_policies_for_target(TargetId=resource['Id'], Filter='SERVICE_CONTROL_POLICY')
+        return result['Policies']
+
+    def process(self, output, event=None):
+        c = local_session(self.manager.session_factory).client('organizations')
+        value = self.data.get('value', True)
+        if not value:
+            return output
+        result = []
+        for r in output:
+            policies = self.get_attached_scp_policy(c, r)
+            if len(policies) > 0 and policies is not None:
+                policy_arns = set()
+                for policy in policies:
+                    policy_arns.add(policy[POLICY_ID])
+                r['attached-policies'] = list(policy_arns)
+            result.append(r)
+        return result
