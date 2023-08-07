@@ -8,7 +8,7 @@ from c7n.utils import (
     local_session, type_schema
 )
 
-POLICY_ID = 'Arn'
+POLICY_ID = 'Id'
 
 
 class DescribeSCP(DescribeSource):
