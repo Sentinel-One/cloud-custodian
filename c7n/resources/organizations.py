@@ -178,7 +178,7 @@ class IncludeAttachedPolicyFilter(Filter):
         for r in resources:
             policies = self._get_attached_policy(c, r)
             if len(policies) > 0 and policies is not None:
-                r['attached-policies'] = list(self.get_attached_policy_arns(policies))
+                r['attachedPolicies'] = list(self.get_attached_policy_arns(policies))
             result.append(r)
         return result
 
@@ -207,7 +207,7 @@ class IncludeInheritedPolicyFilter(Filter):
         result = []
         for r in resources:
             inherited_policy_arns = self.get_all_inherited_policy_arns(r, policy_dictionary)
-            r['inherited_parent_policies'] = list(inherited_policy_arns)
+            r['inheritedParentPolicies'] = list(inherited_policy_arns)
             result.append(r)
         return result
 
@@ -277,7 +277,7 @@ class IncludeAllChildFilter(Filter):
         if len(organization_units) > 0 and organization_units is not None:
             for ou in organization_units:
                 children.add(ou['Id'])
-            r['child_organization_units'] = list(children)
+            r['childOrganizationUnits'] = list(children)
         return children
 
 
@@ -303,7 +303,7 @@ class IncludeAllAccountsFilter(Filter):
                 children = set()
                 for account in accounts:
                     children.add(account['Id'])
-                r['child_accounts'] = list(children)
+                r['childAccounts'] = list(children)
             result.append(r)
         return result
 
@@ -330,6 +330,6 @@ class IncludeAttachedSCPPolicyFilter(Filter):
                 policy_arns = set()
                 for policy in policies:
                     policy_arns.add(policy[POLICY_ID])
-                r['attached-policies'] = list(policy_arns)
+                r['attachedPolicies'] = list(policy_arns)
             result.append(r)
         return result
