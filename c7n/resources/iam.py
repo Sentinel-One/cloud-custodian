@@ -1904,7 +1904,7 @@ class UserCredentialReport(CredentialReport):
             info = report.get(r['UserName'])
             if self.match(r, info):
                 r['c7n:credential-report'] = info
-                results.append(r)
+            results.append(r)
         return results
 
 
@@ -3284,17 +3284,18 @@ class UserAccessKeyId(ValueFilter):
 
         matched = []
         for r in resources:
-            r['c7n:credential-report']['access_keys'] = []
-            del r['c7n:credential-report']['access_keys']
-            del r['c7n:credential-report']['user']
-            del r['c7n:credential-report']['arn']
-            del r['c7n:credential-report']['user_creation_time']
-            access_keys = r['c7n:AccessKeys']
-            access_key_ids = []
-            for access_key in access_keys:
-                access_key_ids.append(access_key['AccessKeyId'])
-            r['c7n:AccessKeys'] = []
-            r['c7n:AccessKeys'] = access_key_ids
+            if 'c7n:credential-report' in r:
+                r['c7n:credential-report']['access_keys'] = []
+                del r['c7n:credential-report']['access_keys']
+                del r['c7n:credential-report']['user']
+                del r['c7n:credential-report']['arn']
+                del r['c7n:credential-report']['user_creation_time']
+                access_keys = r['c7n:AccessKeys']
+                access_key_ids = []
+                for access_key in access_keys:
+                    access_key_ids.append(access_key['AccessKeyId'])
+                r['c7n:AccessKeys'] = []
+                r['c7n:AccessKeys'] = access_key_ids
             matched.append(r)
         return matched
 
