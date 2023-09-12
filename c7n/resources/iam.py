@@ -3251,8 +3251,12 @@ class UserAccessKeyDetails(ValueFilter):
             index = 0
             while index < len(access_keys):
                 access_key = access_keys[index]
-                credential_report_access_key = r['c7n:credential-report']['access_keys'][index]
-                access_key_merged = {**access_key, **credential_report_access_key}
+                if 'c7n:credential-report' in r:
+                    credential_report_access_key = r['c7n:credential-report']['access_keys'][index]
+                    access_key_merged = {**access_key, **credential_report_access_key}
+                else:
+                    credential_access_key = r['c7n:AccessKeys'][index]
+                    access_key_merged = {**access_key, **credential_access_key}
                 index = index + 1
                 matched.append(access_key_merged)
         return matched
