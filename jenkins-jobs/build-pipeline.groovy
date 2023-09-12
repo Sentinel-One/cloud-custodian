@@ -9,9 +9,7 @@ import groovy.transform.Field
 @Field artUrl = "https://artifactory.eng.sentinelone.tech"
 @Field isRelease = false
 @Field isPRBuild = false
-
 @Field artVersion = "0.9.26.4.11"
-
 
 timeout(activity: true, time: 10) {
     timestamps {
