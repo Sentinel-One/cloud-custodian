@@ -284,3 +284,47 @@ class DeleteTrail(BaseAction):
                 client.delete_trail(Name=r['Name'])
             except client.exceptions.TrailNotFoundException:
                 continue
+
+
+@CloudTrail.filter_registry.register('event-selectors-no-filter')
+class EventSelectors(Filter):
+    schema = type_schema('event-selectors-no-filter')
+    permissions = ('cloudtrail:GetEventSelectors',)
+    annotation_key = 'c7n:TrailEventSelectors'
+
+    def get_event_selectors(self, client, r):
+        selectors = client.get_event_selectors(TrailName=r['TrailARN'], )
+        selectors.pop('ResponseMetadata')
+        r['c7n:TrailEventSelectors'] = selectors
+        return selectors
+
+    def process(self, resources, event=None):
+        grouped_trails = get_trail_groups(self.manager.session_factory, resources)
+        res = []
+        for region, (client, trails) in grouped_trails.items():
+            for t in trails:
+                include_management_events = False
+                read_write_types = ""
+                if self.annotation_key in t:
+                    continue
+                self.get_event_selectors(client, t)
+                if 'c7n:TrailEventSelectors' in t:
+                    try:
+                        event_selectors = t['c7n:TrailEventSelectors']['EventSelectors']
+                        if len(event_selectors) > 0:
+                            for event_selector in event_selectors:
+                                if event_selector['IncludeManagementEvents']:
+                                    include_management_events = True
+                                if event_selector['ReadWriteType']:
+                                    if read_write_types == "":
+                                        read_write_types += event_selector['ReadWriteType']
+                                    else:
+                                        read_write_types += "," + event_selector['ReadWriteType']
+                    except KeyError:
+                        include_management_events = False
+                    del t['c7n:TrailEventSelectors']
+                t['include_management_events'] = include_management_events
+                t['read_write_types'] = read_write_types
+                res.append(t)
+        return res
+

@@ -2335,3 +2335,24 @@ class SesConsecutiveStats(Filter):
         resources[0][self.max_bounce_annotation] = max_bounce_rate
 
         return resources
+
+
+@Account.filter_registry.register('access-key-attached')
+class RootUserAccessKeyAttached(ValueFilter):
+    schema = type_schema('access-key-attached')
+
+    def process(self, resources, event=None):
+        matched = []
+        for r in resources:
+            if 'c7n:credential-report' in r:
+                try:
+                    access_keys = r['c7n:credential-report']['access_keys']
+                    if len(access_keys) > 0:
+                        r['c7n:credential-report']['access_key_attached'] = True
+                    else:
+                        r['c7n:credential-report']['access_key_attached'] = False
+                    del r['c7n:credential-report']['access_keys']
+                except KeyError:
+                    r['c7n:credential-report']['access_key_attached'] = False
+            matched.append(r)
+        return matched

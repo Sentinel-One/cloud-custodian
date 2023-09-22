@@ -3,7 +3,7 @@
 from c7n.manager import resources
 from c7n.query import ConfigSource, QueryResourceManager, TypeInfo, DescribeSource
 from c7n.tags import universal_augment
-from c7n.filters import ValueFilter
+from c7n.filters import Filter, ValueFilter
 from c7n.utils import type_schema, local_session
 
 
@@ -142,3 +142,37 @@ class WAFV2LoggingFilter(ValueFilter):
         return [
             r for r in resources if self.match(
                 r.get(self.annotation_key, {}))]
+
+
+@WAFV2.filter_registry.register('has-bad-inputs-rule')
+class WAFV2BadInputsRuleFilter(Filter):
+    schema = type_schema('has-bad-inputs-rule')
+    permissions = ('wafv2:GetWebACL', )
+
+    def get_web_acl(self, client, r):
+        try:
+            res = client.get_web_acl(Name=r['Name'], Id=r['Id'], Scope='REGIONAL')
+            print(res)
+            r['c7n:Rules'] = res.get('WebACL')['Rules']
+        except Exception as e:
+            self.log.warning(
+                "Exception trying to get web acl: %s error: %s", r['Id'], e)
+        return r
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client(
+            'wafv2', region_name=self.manager.region)
+        res = []
+        bad_inputs_rule = False
+        for r in resources:
+            self.get_web_acl(client, r)
+            if 'c7n:Rules' in r:
+                rules = r['c7n:Rules']
+                for rule in rules:
+                    if 'AWSManagedRulesKnownBadInputsRule' in rule['Name']:
+                        bad_inputs_rule = True
+                del r['c7n:Rules']
+            r['known_bad_inputs_rule_set'] = bad_inputs_rule
+            res.append(r)
+        return res
+
