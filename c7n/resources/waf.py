@@ -152,7 +152,6 @@ class WAFV2BadInputsRuleFilter(Filter):
     def get_web_acl(self, client, r):
         try:
             res = client.get_web_acl(Name=r['Name'], Id=r['Id'], Scope='REGIONAL')
-            print(res)
             r['c7n:Rules'] = res.get('WebACL')['Rules']
         except Exception as e:
             self.log.warning(
@@ -169,7 +168,8 @@ class WAFV2BadInputsRuleFilter(Filter):
             if 'c7n:Rules' in r:
                 rules = r['c7n:Rules']
                 for rule in rules:
-                    if 'AWSManagedRulesKnownBadInputsRule' in rule['Name']:
+                    if 'AWSManagedRulesKnownBadInputsRule' \
+                            in rule['Statement']['ManagedRuleGroupStatement']['Name']:
                         bad_inputs_rule = True
                 del r['c7n:Rules']
             r['known_bad_inputs_rule_set'] = bad_inputs_rule
