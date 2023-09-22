@@ -940,3 +940,35 @@ class StreamingDistributionUpdateAction(BaseUpdateAction):
                 "Exception trying to update Streaming Distribution: %s error: %s",
                 streaming_distribution['ARN'], e)
             raise e
+
+
+@Distribution.filter_registry.register('distribution-config-no-filter')
+class DistributionConfig(BaseDistributionConfig):
+    schema = type_schema('distribution-config-no-filter')
+
+    permissions = ('cloudfront:GetDistributionConfig',)
+
+    def get_distribution_config(self, client, r):
+        try:
+            r['c7n:distribution-config'] = client.get_distribution_config(Id=r['Id']) \
+                .get('DistributionConfig')
+        except Exception as e:
+            self.log.warning(
+                "Exception trying to get Distribution Config: %s error: %s",
+                r['ARN'], e)
+        return r
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client(
+            'cloudfront', region_name=self.manager.config.region)
+        res = []
+        delete_keys = ["Aliases", "Origins", "DefaultCacheBehavior", "OriginGroups", "CacheBehaviors",
+                       "CustomErrorResponses", "ViewerCertificate", "Restrictions", "Logging", "c7n:distribution-config"]
+        for r in resources:
+            self.get_distribution_config(client, r)
+            r['default_root_object'] = r['c7n:distribution-config']['DefaultRootObject']
+            for key in delete_keys:
+                if key in r:
+                    del r[key]
+            res.append(r)
+        return res
