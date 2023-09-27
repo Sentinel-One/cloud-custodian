@@ -3303,6 +3303,32 @@ class UserAccessKeyId(ValueFilter):
             matched.append(r)
         return matched
 
+
+@User.filter_registry.register('credential-report-access-keys')
+class UserCredentialReportAccessKey(ValueFilter):
+    schema = type_schema('credential-report-access-keys')
+    schema_alias = False
+
+    def process(self, resources, event=None):
+        matched = []
+        for r in resources:
+            if 'c7n:credential-report' in r:
+                try:
+                    credential_report_access_keys = r['c7n:credential-report']['access_keys']
+                    if len(credential_report_access_keys) > 0:
+                        index = 1
+                        for credential_report_access_key in credential_report_access_keys:
+                            r['access_key_' + str(index) + '_active'] = credential_report_access_key['active']
+                            r['access_key_' + str(index) + '_last_rotated'] = credential_report_access_key[
+                                'last_rotated']
+                            r['access_key_' + str(index) + '_last_used_date'] = credential_report_access_key[
+                                'last_used_date']
+                            index = index + 1
+                except KeyError:
+                    r['c7n:credential-report']['access_keys'] = []
+            matched.append(r)
+        return matched
+
 # ############### S1 User Filters- end ##################
 
 # ############### S1 Group Filters- start ##################
