@@ -2356,3 +2356,78 @@ class RootUserAccessKeyAttached(ValueFilter):
                     r['c7n:credential-report']['access_key_attached'] = False
             matched.append(r)
         return matched
+
+
+@filters.register('account-summary')
+class IAMAccountSummary(Filter):
+    schema = type_schema('iam-summary')
+    schema_alias = False
+    permissions = ('iam:GetAccountSummary',)
+
+    def process(self, resources, event=None):
+        if not resources[0].get('c7n:iam_summary'):
+            client = local_session(
+                self.manager.session_factory).client('iam')
+            resources[0]['c7n:iam_summary'] = client.get_account_summary(
+            )['SummaryMap']
+        return resources
+
+
+@filters.register('account-password-policy')
+class IAMAccountPasswordPolicy(Filter):
+    schema = type_schema('account-password-policy')
+    schema_alias = False
+    permissions = ('iam:GetAccountPasswordPolicy',)
+
+    def process(self, resources, event=None):
+        account = resources[0]
+        if not account.get('c7n:password_policy'):
+            client = local_session(self.manager.session_factory).client('iam')
+            policy = {}
+            try:
+                policy = client.get_account_password_policy().get('PasswordPolicy', {})
+                policy['PasswordPolicyConfigured'] = True
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'NoSuchEntity':
+                    policy['PasswordPolicyConfigured'] = False
+            account['c7n:password_policy'] = policy
+        return resources
+
+
+@filters.register('alternate-contact')
+class IAMAccountAlternateAccount(Filter):
+    schema = type_schema('alternate-contact')
+    schema_alias = False
+    permissions = ('account:GetAlternateContact',)
+
+    def process(self, resources, event=None):
+        if not resources[0].get('c7n:alternate_contact'):
+            client = local_session(self.manager.session_factory).client('account')
+            alternate_contact = {}
+            try:
+                alternate_contact = client.get_alternate_contact(AlternateContactType='SECURITY')
+                alternate_contact['SecurityAlternateContactConfigured'] = True
+            except client.exceptions.ResourceNotFoundException as e:
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    alternate_contact['SecurityAlternateContactConfigured'] = False
+            resources[0]['c7n:alternate_contact'] = alternate_contact
+        return resources
+
+
+@filters.register('account-securityhub')
+class IAMAccountSecurityHubEnabled(Filter):
+
+    permissions = ('securityhub:DescribeHub',)
+
+    schema = type_schema('account-securityhub')
+
+    def process(self, resources, event=None):
+        state = self.data.get('enabled', True)
+        client = local_session(self.manager.session_factory).client('securityhub')
+        security_hub = self.manager.retry(client.describe_hub, ignore_err_codes=(
+            'InvalidAccessException',))
+        security_hub_enabled = {'SecurityHubEnabled': False}
+        if state == bool(security_hub):
+            security_hub_enabled['SecurityHubEnabled'] = True
+        resources[0]['c7n:security_hub'] = security_hub_enabled
+        return resources
