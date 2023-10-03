@@ -2952,6 +2952,7 @@ class EnabledFlowLogFilter(Filter):
         for r in resources:
             FlowLogsEnabled = False
             if r[m.id] not in resource_map:
+                r['FlowLogsEnabled'] = FlowLogsEnabled
                 # we didn't find a flow log for this vpc
                 results.append(r)
                 continue
