@@ -1,7 +1,7 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import logging
-
+from botocore.exceptions import ClientError
 from c7n.actions import Action, BaseAction
 from c7n.exceptions import PolicyValidationError
 from c7n.filters import ValueFilter, Filter
@@ -326,5 +326,27 @@ class EventSelectors(Filter):
                 t['include_management_events'] = include_management_events
                 t['read_write_types'] = read_write_types
                 res.append(t)
+        return res
+
+
+@CloudTrail.filter_registry.register('s3-logs')
+class BucketLoggingFilter(Filter):
+    schema = type_schema('s3-logs')
+    permissions = ('s3:GetBucketLogging',)
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            client = local_session(self.manager.session_factory).client('s3')
+            bucket_name = r['S3BucketName']
+            if bucket_name is not None:
+                try:
+                    bucket_logging = client.get_bucket_logging(Bucket=bucket_name)
+                    if not bucket_logging.get('LoggingEnabled'):
+                        r['LoggingEnabled'] = True
+                except ClientError as e:
+                    r['LoggingEnabled'] = False
+                    r['BucketAccessDenied'] = True
+            res.append(r)
         return res
 

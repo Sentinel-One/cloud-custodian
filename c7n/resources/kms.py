@@ -425,3 +425,35 @@ class KmsPostFinding(PostFinding):
             )
 
         return envelope
+
+
+@Key.filter_registry.register('all-key-rotation-status')
+class AllKeyRotationStatus(ValueFilter):
+    schema = type_schema('all-key-rotation-status', rinherit=ValueFilter.schema)
+    schema_alias = False
+    permissions = ('kms:GetKeyRotationStatus',)
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('kms')
+
+        def _key_rotation_status(resource):
+            try:
+                resource['KeyRotationEnabled'] = client.get_key_rotation_status(
+                    KeyId=resource['KeyId'])
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'AccessDeniedException':
+                    self.log.warning(
+                        "Access denied when getting rotation status on key:%s",
+                        resource.get('KeyArn'))
+                else:
+                    raise
+
+        with self.executor_factory(max_workers=2) as w:
+            query_resources = [
+                r for r in resources if 'KeyRotationEnabled' not in r]
+            self.log.debug(
+                "Querying %d kms-keys' rotation status" % len(query_resources))
+            list(w.map(_key_rotation_status, query_resources))
+
+        return [r for r in resources]
+
