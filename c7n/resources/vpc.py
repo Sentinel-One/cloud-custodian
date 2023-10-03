@@ -2933,3 +2933,32 @@ class CrossAZRouteTable(Filter):
                 results.append(resource)
 
         return results
+
+
+@Vpc.filter_registry.register('flow-logs-enabled')
+class EnabledFlowLogFilter(Filter):
+
+    schema = type_schema('flow-logs-enabled', )
+    permissions = ('ec2:DescribeFlowLogs',)
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('ec2')
+        logs = client.describe_flow_logs().get('FlowLogs', ())
+        m = self.manager.get_model()
+        resource_map = {}
+        for fl in logs:
+            resource_map.setdefault(fl['ResourceId'], []).append(fl)
+        results = []
+        for r in resources:
+            FlowLogsEnabled = False
+            if r[m.id] not in resource_map:
+                # we didn't find a flow log for this vpc
+                results.append(r)
+                continue
+            flogs = resource_map[r[m.id]]
+            if flogs is not None:
+                if len(flogs) > 0:
+                    FlowLogsEnabled = True
+            r['FlowLogsEnabled'] = FlowLogsEnabled
+            results.append(r)
+        return results
