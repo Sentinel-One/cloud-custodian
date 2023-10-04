@@ -314,7 +314,6 @@ class EventSelectorsWithNoFilter(Filter):
                         event_selectors = t['c7n:TrailEventSelectors']['EventSelectors']
                         if len(event_selectors) > 0:
                             for event_selector in event_selectors:
-                                print(event_selector)
                                 if event_selector['IncludeManagementEvents'] is not None:
                                     if include_management_events == "":
                                         include_management_events += str(event_selector['IncludeManagementEvents'])
