@@ -287,7 +287,7 @@ class DeleteTrail(BaseAction):
 
 
 @CloudTrail.filter_registry.register('event-selectors-no-filter')
-class EventSelectors(Filter):
+class EventSelectorsWithNoFilter(Filter):
     schema = type_schema('event-selectors-no-filter')
     permissions = ('cloudtrail:GetEventSelectors',)
     annotation_key = 'c7n:TrailEventSelectors'
@@ -303,8 +303,9 @@ class EventSelectors(Filter):
         res = []
         for region, (client, trails) in grouped_trails.items():
             for t in trails:
-                include_management_events = False
+                include_management_events = ""
                 read_write_types = ""
+                data_resource_types = ""
                 if self.annotation_key in t:
                     continue
                 self.get_event_selectors(client, t)
@@ -313,18 +314,33 @@ class EventSelectors(Filter):
                         event_selectors = t['c7n:TrailEventSelectors']['EventSelectors']
                         if len(event_selectors) > 0:
                             for event_selector in event_selectors:
-                                if event_selector['IncludeManagementEvents']:
-                                    include_management_events = True
+                                print(event_selector)
+                                if event_selector['IncludeManagementEvents'] is not None:
+                                    if include_management_events == "":
+                                        include_management_events += str(event_selector['IncludeManagementEvents'])
+                                    else:
+                                        include_management_events += "," + str(
+                                            event_selector['IncludeManagementEvents'])
                                 if event_selector['ReadWriteType']:
                                     if read_write_types == "":
                                         read_write_types += event_selector['ReadWriteType']
                                     else:
                                         read_write_types += "," + event_selector['ReadWriteType']
+                                data_resources = event_selector['DataResources']
+                                if len(data_resources) > 0:
+                                    for data_resource in data_resources:
+                                        if data_resource['Type']:
+                                            if data_resource_types == "":
+                                                data_resource_types += data_resource['Type']
+                                            else:
+                                                data_resource_types += "," + data_resource['Type']
+
                     except KeyError:
-                        include_management_events = False
+                        include_management_events = "False"
                     del t['c7n:TrailEventSelectors']
-                t['include_management_events'] = include_management_events
-                t['read_write_types'] = read_write_types
+                t['IncludeManagementEvents'] = include_management_events
+                t['ReadWriteTypes'] = read_write_types
+                t['DataResourceTypes'] = data_resource_types
                 res.append(t)
         return res
 
