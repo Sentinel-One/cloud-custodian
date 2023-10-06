@@ -1,6 +1,7 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import logging
+import json
 from botocore.exceptions import ClientError
 from c7n.actions import Action, BaseAction
 from c7n.exceptions import PolicyValidationError
@@ -365,3 +366,42 @@ class BucketLoggingFilter(Filter):
             res.append(r)
         return res
 
+
+@CloudTrail.filter_registry.register('bucket-acls')
+class BucketACLFilter(Filter):
+    schema = type_schema('bucket-acls')
+    permissions = ('s3:GetBucketAcl',)
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            client = local_session(self.manager.session_factory).client('s3')
+            bucket_name = r['S3BucketName']
+            if bucket_name is not None:
+                try:
+                    bucket_acl = client.get_bucket_acl(Bucket=bucket_name)
+                    r['BucketACL'] = json.dumps(bucket_acl['Grants'])
+                except ClientError as e:
+                    self.log.error("when calling the GetBucketAcl operation %s", e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@CloudTrail.filter_registry.register('bucket-policy')
+class BucketPolicyFilter(Filter):
+    schema = type_schema('bucket-policy')
+    permissions = ('s3:GetBucketPolicy',)
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            client = local_session(self.manager.session_factory).client('s3')
+            bucket_name = r['S3BucketName']
+            if bucket_name is not None:
+                try:
+                    bucket_policy = client.get_bucket_policy(Bucket=bucket_name)
+                    r['Policy'] = bucket_policy['Policy']
+                except ClientError as e:
+                    self.log.error("when calling the GetBucketPolicy operation %s", e.response['Error']['Message'])
+            res.append(r)
+        return res
