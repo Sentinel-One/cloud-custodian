@@ -405,3 +405,25 @@ class BucketPolicyFilter(Filter):
                     self.log.error("when calling the GetBucketPolicy operation %s", e.response['Error']['Message'])
             res.append(r)
         return res
+
+
+@CloudTrail.filter_registry.register('status-no-filter')
+class CloudTrailStatus(Filter):
+    schema = type_schema('status-no-filter')
+    schema_alias = False
+    permissions = ('cloudtrail:GetTrailStatus',)
+    annotation_key = 'c7n:TrailStatus'
+
+    def process(self, resources, event=None):
+        grouped_trails = get_trail_groups(self.manager.session_factory, resources)
+        res = []
+        for region, (client, trails) in grouped_trails.items():
+            for t in trails:
+                if self.annotation_key in t:
+                    res.append(t)
+                    continue
+                status = client.get_trail_status(Name=t['TrailARN'])
+                status.pop('ResponseMetadata')
+                t[self.annotation_key] = status
+                res.append(t)
+        return res
