@@ -3562,13 +3562,10 @@ class BucketVersioningFilter(Filter):
                 bucket_versioning = client.get_bucket_versioning(Bucket=bucket_name)
                 bucket_versioning.pop('ResponseMetadata')
                 r['VersioningConfiguration'] = bucket_versioning
-                versioning_status = "Unversioned"
-                try:
-                    if r['VersioningConfiguration']['Status'] is not None:
-                        versioning_status = r['VersioningConfiguration']['Status']
-                except KeyError as ke:
-                    versioning_status = "Unversioned"
-                r['VersioningConfiguration']['Status'] = versioning_status
+                if 'Status' not in bucket_versioning:
+                    r['VersioningConfiguration']['Status'] = "Unversioned"
+                if 'MfaDelete'not in r:
+                    r['VersioningConfiguration']['MfaDelete'] = "Disabled"
             except ClientError as e:
                 self.log.error("Bucket:%s unable to invoke method:get_bucket_versioning error:%s", bucket_name,
                                e.response['Error']['Message'])
@@ -3613,6 +3610,47 @@ class BucketObjectCountFilter(Filter):
                 r['ObjectCount'] = len(objects)
             except ClientError as e:
                 self.log.error("Bucket:%s unable to invoke method:list_objects error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('s3-bucket-policy')
+class BucketPolicyFilter(Filter):
+    schema = type_schema('s3-bucket-policy')
+    permissions = ('s3:GetBucketPolicy',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                bucket_policy = client.get_bucket_policy(Bucket=bucket_name)
+                bucket_policy.pop('ResponseMetadata')
+                r['BucketPolicy'] = bucket_policy
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:get_bucket_policy error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('get-public-access-block')
+class BucketPublicAccessBlockFilter(Filter):
+    schema = type_schema('get-public-access-block')
+    permissions = ('s3:GetPublicAccessBlock',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                public_access_block = client.get_public_access_block(Bucket=bucket_name)
+                r['PublicAccessBlockConfiguration'] = public_access_block['PublicAccessBlockConfiguration']
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:get_public_access_block error:%s", bucket_name,
                                e.response['Error']['Message'])
             res.append(r)
         return res
