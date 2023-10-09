@@ -3505,3 +3505,114 @@ class BucketAclFilter(Filter):
             "bucket_name": bucket_name,
             "acl": acl
         }
+
+
+@S3.filter_registry.register('s3-bucket-tagging')
+class BucketLoggingFilter(Filter):
+    schema = type_schema('s3-bucket-tagging')
+    permissions = ('s3:GetBucketTagging',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                bucket_tagging = client.get_bucket_tagging(Bucket=bucket_name)
+                r['TagSet'] = bucket_tagging['TagSet']
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:get_bucket_tagging error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('s3-bucket-encryption')
+class BucketEncryptionFilter(Filter):
+    schema = type_schema('s3-bucket-encryption')
+    permissions = ('s3:GetBucketEncryption',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                bucket_encryption = client.get_bucket_encryption(Bucket=bucket_name)
+                r['ServerSideEncryptionConfiguration'] = bucket_encryption[
+                    'ServerSideEncryptionConfiguration']
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:get_bucket_encryption error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('s3-bucket-versioning')
+class BucketVersioningFilter(Filter):
+    schema = type_schema('s3-bucket-versioning')
+    permissions = ('s3:GetBucketVersioning',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                bucket_versioning = client.get_bucket_versioning(Bucket=bucket_name)
+                bucket_versioning.pop('ResponseMetadata')
+                r['VersioningConfiguration'] = bucket_versioning
+                versioning_status = "Unversioned"
+                try:
+                    if r['VersioningConfiguration']['Status'] is not None:
+                        versioning_status = r['VersioningConfiguration']['Status']
+                except KeyError as ke:
+                    versioning_status = "Unversioned"
+                r['VersioningConfiguration']['Status'] = versioning_status
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:get_bucket_versioning error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('calculate-fields')
+class CalculateFieldsFilter(Filter):
+    schema = type_schema('calculate-fields')
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            bucket_location = 'us-east-1'
+            bucket_name = r['Name']
+            r['ResourceId'] = 'arn:aws:s3:::' + bucket_name
+            r['BucketName'] = bucket_name
+            try:
+                if r['Location']['LocationConstraint'] is not None:
+                    bucket_location = r['Location']['LocationConstraint']
+            except KeyError as ke:
+                self.log.error("Bucket:%s unable to invoke method:calculate_fields error:%s", bucket_name,
+                               ke.response['Error']['Message'])
+            r['BucketLocation'] = bucket_location
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('s3-bucket-count')
+class BucketObjectCountFilter(Filter):
+    schema = type_schema('s3-bucket-count')
+    permissions = ('s3:ListObjects',)
+
+    def process(self, resources, event=None):
+        res = []
+        client = local_session(self.manager.session_factory).client('s3')
+        for r in resources:
+            bucket_name = r['Name']
+            try:
+                objects = client.list_objects(Bucket=bucket_name)
+                r['ObjectCount'] = len(objects)
+            except ClientError as e:
+                self.log.error("Bucket:%s unable to invoke method:list_objects error:%s", bucket_name,
+                               e.response['Error']['Message'])
+            res.append(r)
+        return res
