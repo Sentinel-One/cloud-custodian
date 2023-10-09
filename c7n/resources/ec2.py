@@ -2479,3 +2479,40 @@ class HasSpecificManagedPolicy(SpecificIamProfileManagedPolicy):
                 results.append(r)
 
         return results
+
+
+# #################################################################
+# s1 specific filters
+# #######################################
+
+def is_not_empty(data) -> bool:
+    if len(data) > 0:
+        return True
+
+
+@EC2.filter_registry.register('format-describe-instances')
+class FormatEC2DescribeInstance(Filter):
+    schema = type_schema('has-policy-details')
+    perms = ('ec2:DescribeInstances', 'ec2:ModifyInstanceAttribute')
+
+    def process(self, resources, event=None):
+        results = []
+        for r in resources:
+            if is_not_empty(r["State"]):
+                r["InstanceState"] = r.pop("State", {})
+                r["TagSet"] = {"Item": r.pop("Tags", [])}
+                r["GroupSet"] = {"Item": r.pop("SecurityGroups", [])}
+                r["BlockDeviceMapping"] = {"Items": r.pop("BlockDeviceMappings", [])}
+            if is_not_empty(r["NetworkInterfaces"]):
+                networkInterfaces = r.pop("NetworkInterfaces", {})
+                all_interfaces = []
+                for networkInterface in networkInterfaces:
+                    networkInterface["GroupSet"] = {"Item": networkInterface.pop("Groups", [])}
+                    networkInterface["PrivateIpAddressesSet"] = {"Item": networkInterface.pop("PrivateIpAddresses", [])}
+                    all_interfaces.append(networkInterface)
+
+                r["NetworkInterfaceSet"] = {"Item": all_interfaces}
+
+            results.append(r)
+
+        return results
