@@ -35,7 +35,7 @@ import math
 import os
 import time
 import ssl
-
+from datetime import datetime, timedelta
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
@@ -413,6 +413,8 @@ S3_AUGMENT_TABLE = (
      'Notification', None, None, 's3:GetBucketNotification'),
     ('get_bucket_lifecycle_configuration',
      'Lifecycle', None, None, 's3:GetLifecycleConfiguration'),
+    ('get_bucket_encryption', 'ServerSideEncryptionConfiguration', None,
+     'ServerSideEncryptionConfiguration', 's3:GetBucketEncryption'),
     #        ('get_bucket_cors', 'Cors'),
 )
 
@@ -3507,40 +3509,45 @@ class BucketAclFilter(Filter):
         }
 
 
-@S3.filter_registry.register('s3-bucket-encryption')
-class BucketEncryptionFilter(Filter):
-    schema = type_schema('s3-bucket-encryption')
-    permissions = ('s3:GetBucketEncryption',)
-
-    def process(self, resources, event=None):
-        res = []
-        client = local_session(self.manager.session_factory).client('s3')
-        for r in resources:
-            bucket_name = r['Name']
-            try:
-                bucket_encryption = client.get_bucket_encryption(Bucket=bucket_name)
-                r['ServerSideEncryptionConfiguration'] = bucket_encryption[
-                    'ServerSideEncryptionConfiguration']
-            except ClientError as e:
-                self.log.error("Bucket:%s unable to invoke method:get_bucket_encryption error:%s", bucket_name,
-                               e.response['Error']['Message'])
-            res.append(r)
-        return res
-
-
 @S3.filter_registry.register('s3-bucket-count')
 class BucketObjectCountFilter(Filter):
     schema = type_schema('s3-bucket-count')
-    permissions = ('s3:ListObjects',)
+    permissions = ('cloudwatch:GetMetricStatistics',)
 
     def process(self, resources, event=None):
         res = []
-        client = local_session(self.manager.session_factory).client('s3')
+        client = local_session(self.manager.session_factory).client('cloudwatch')
         for r in resources:
-            bucket_name = r['Name']
             try:
-                objects = client.list_objects(Bucket=bucket_name)
-                r['ObjectCount'] = len(objects)
+                bucket_name = r['Name']
+                metric_statistic = client.get_metric_statistics(
+                    Namespace='AWS/S3',
+                    Dimensions=[
+                        {
+                            'Name': 'BucketName',
+                            'Value': bucket_name
+                        },
+                        {
+                            'Name': 'StorageType',
+                            'Value': 'AllStorageTypes'
+                        }
+                    ],
+                    MetricName='NumberOfObjects',
+                    StartTime=datetime.utcnow() - timedelta(days=7),
+                    EndTime=datetime.utcnow(),
+                    Period=86400,
+                    Statistics=[
+                        'Average'
+                    ]
+                )
+                object_count = 0
+
+                if 'Datapoints' in metric_statistic:
+                    data_points = metric_statistic['Datapoints']
+                    if len(data_points) > 0:
+                        object_count = data_points[len(data_points)-1]['Average']
+                r['ObjectCount'] = object_count
+
             except ClientError as e:
                 self.log.error("Bucket:%s unable to invoke method:list_objects error:%s", bucket_name,
                                e.response['Error']['Message'])
@@ -3557,8 +3564,8 @@ class BucketPublicAccessBlockFilter(Filter):
         res = []
         client = local_session(self.manager.session_factory).client('s3')
         for r in resources:
-            bucket_name = r['Name']
             try:
+                bucket_name = r['Name']
                 public_access_block = client.get_public_access_block(Bucket=bucket_name)
                 r['PublicAccessBlockConfiguration'] = public_access_block['PublicAccessBlockConfiguration']
             except ClientError as e:
@@ -3575,11 +3582,11 @@ class CalculateFieldsFilter(Filter):
     def process(self, resources, event=None):
         res = []
         for r in resources:
-            bucket_location = 'us-east-1'
-            bucket_name = r['Name']
-            r['ResourceId'] = 'arn:aws:s3:::' + bucket_name
-            r['BucketName'] = bucket_name
             try:
+                bucket_location = 'us-east-1'
+                bucket_name = r['Name']
+                r['ResourceId'] = 'arn:aws:s3:::' + bucket_name
+                r['BucketName'] = bucket_name
                 if r['Location']['LocationConstraint'] is not None:
                     bucket_location = r['Location']['LocationConstraint']
                 r['VersioningConfiguration'] = {}
