@@ -3471,7 +3471,7 @@ class BucketOwnershipControls(BucketFilterBase, ValueFilter):
         b[self.annotation_key] = controls.get('OwnershipControls')
 
 
-###################### S1 New Filters - Start ######################################
+# S1 New Filters - Start #
 
 @filters.register('bucket-acl')
 class BucketAclFilter(Filter):
@@ -3507,26 +3507,6 @@ class BucketAclFilter(Filter):
         }
 
 
-@S3.filter_registry.register('s3-bucket-tagging')
-class BucketLoggingFilter(Filter):
-    schema = type_schema('s3-bucket-tagging')
-    permissions = ('s3:GetBucketTagging',)
-
-    def process(self, resources, event=None):
-        res = []
-        client = local_session(self.manager.session_factory).client('s3')
-        for r in resources:
-            bucket_name = r['Name']
-            try:
-                bucket_tagging = client.get_bucket_tagging(Bucket=bucket_name)
-                r['TagSet'] = bucket_tagging['TagSet']
-            except ClientError as e:
-                self.log.error("Bucket:%s unable to invoke method:get_bucket_tagging error:%s", bucket_name,
-                               e.response['Error']['Message'])
-            res.append(r)
-        return res
-
-
 @S3.filter_registry.register('s3-bucket-encryption')
 class BucketEncryptionFilter(Filter):
     schema = type_schema('s3-bucket-encryption')
@@ -3544,53 +3524,6 @@ class BucketEncryptionFilter(Filter):
             except ClientError as e:
                 self.log.error("Bucket:%s unable to invoke method:get_bucket_encryption error:%s", bucket_name,
                                e.response['Error']['Message'])
-            res.append(r)
-        return res
-
-
-@S3.filter_registry.register('s3-bucket-versioning')
-class BucketVersioningFilter(Filter):
-    schema = type_schema('s3-bucket-versioning')
-    permissions = ('s3:GetBucketVersioning',)
-
-    def process(self, resources, event=None):
-        res = []
-        client = local_session(self.manager.session_factory).client('s3')
-        for r in resources:
-            bucket_name = r['Name']
-            try:
-                bucket_versioning = client.get_bucket_versioning(Bucket=bucket_name)
-                bucket_versioning.pop('ResponseMetadata')
-                r['VersioningConfiguration'] = bucket_versioning
-                if 'Status' not in bucket_versioning:
-                    r['VersioningConfiguration']['Status'] = "Unversioned"
-                if 'MfaDelete'not in r:
-                    r['VersioningConfiguration']['MfaDelete'] = "Disabled"
-            except ClientError as e:
-                self.log.error("Bucket:%s unable to invoke method:get_bucket_versioning error:%s", bucket_name,
-                               e.response['Error']['Message'])
-            res.append(r)
-        return res
-
-
-@S3.filter_registry.register('calculate-fields')
-class CalculateFieldsFilter(Filter):
-    schema = type_schema('calculate-fields')
-
-    def process(self, resources, event=None):
-        res = []
-        for r in resources:
-            bucket_location = 'us-east-1'
-            bucket_name = r['Name']
-            r['ResourceId'] = 'arn:aws:s3:::' + bucket_name
-            r['BucketName'] = bucket_name
-            try:
-                if r['Location']['LocationConstraint'] is not None:
-                    bucket_location = r['Location']['LocationConstraint']
-            except KeyError as ke:
-                self.log.error("Bucket:%s unable to invoke method:calculate_fields error:%s", bucket_name,
-                               ke.response['Error']['Message'])
-            r['BucketLocation'] = bucket_location
             res.append(r)
         return res
 
@@ -3615,27 +3548,6 @@ class BucketObjectCountFilter(Filter):
         return res
 
 
-@S3.filter_registry.register('s3-bucket-policy')
-class BucketPolicyFilter(Filter):
-    schema = type_schema('s3-bucket-policy')
-    permissions = ('s3:GetBucketPolicy',)
-
-    def process(self, resources, event=None):
-        res = []
-        client = local_session(self.manager.session_factory).client('s3')
-        for r in resources:
-            bucket_name = r['Name']
-            try:
-                bucket_policy = client.get_bucket_policy(Bucket=bucket_name)
-                bucket_policy.pop('ResponseMetadata')
-                r['BucketPolicy'] = bucket_policy
-            except ClientError as e:
-                self.log.error("Bucket:%s unable to invoke method:get_bucket_policy error:%s", bucket_name,
-                               e.response['Error']['Message'])
-            res.append(r)
-        return res
-
-
 @S3.filter_registry.register('get-public-access-block')
 class BucketPublicAccessBlockFilter(Filter):
     schema = type_schema('get-public-access-block')
@@ -3652,5 +3564,37 @@ class BucketPublicAccessBlockFilter(Filter):
             except ClientError as e:
                 self.log.error("Bucket:%s unable to invoke method:get_public_access_block error:%s", bucket_name,
                                e.response['Error']['Message'])
+            res.append(r)
+        return res
+
+
+@S3.filter_registry.register('calculate-fields')
+class CalculateFieldsFilter(Filter):
+    schema = type_schema('calculate-fields')
+
+    def process(self, resources, event=None):
+        res = []
+        for r in resources:
+            bucket_location = 'us-east-1'
+            bucket_name = r['Name']
+            r['ResourceId'] = 'arn:aws:s3:::' + bucket_name
+            r['BucketName'] = bucket_name
+            try:
+                if r['Location']['LocationConstraint'] is not None:
+                    bucket_location = r['Location']['LocationConstraint']
+                r['VersioningConfiguration'] = {}
+                if 'Versioning' in r:
+                    r['VersioningConfiguration'] = r.pop('Versioning')
+                r['TagSet'] = []
+                if 'Tags' in r:
+                    r['TagSet'] = r.pop('Tags')
+                if 'Status' not in r['VersioningConfiguration']:
+                    r['VersioningConfiguration']['Status'] = "Unversioned"
+                if 'MfaDelete' not in r['VersioningConfiguration']:
+                    r['VersioningConfiguration']['MfaDelete'] = "Disabled"
+            except KeyError as ke:
+                self.log.error("Bucket:%s unable to invoke method:calculate_fields error:%s", bucket_name,
+                               ke.response['Error']['Message'])
+            r['BucketLocation'] = bucket_location
             res.append(r)
         return res
