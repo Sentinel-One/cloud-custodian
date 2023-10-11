@@ -1,6 +1,7 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import itertools
+import json
 import operator
 import zlib
 import jmespath
@@ -2961,5 +2962,56 @@ class EnabledFlowLogFilter(Filter):
                 if len(flogs) > 0:
                     FlowLogsEnabled = True
             r['FlowLogsEnabled'] = FlowLogsEnabled
+            results.append(r)
+        return results
+
+
+@NetworkAcl.filter_registry.register('data-format')
+class NetworkAclDataFormatFilter(Filter):
+
+    schema = type_schema('data-format', )
+
+    def process(self, resources, event=None):
+        results = []
+        for r in resources:
+            if 'Entries' in r:
+                r['InboundOutboundRules'] = {}
+                r['InboundOutboundRules']['Entries'] = json.dumps(r['Entries'])
+            results.append(r)
+        return results
+
+
+@SecurityGroup.filter_registry.register('data-format')
+class SecurityGroupDataFormatFilter(Filter):
+
+    schema = type_schema('data-format', )
+
+    def process(self, resources, event=None):
+        results = []
+        for r in resources:
+            if 'IpPermissions' in r:
+                r['InboundRules'] = {}
+                r['InboundRules']['IpPermissions'] = json.dumps(r['IpPermissions'])
+            if 'IpPermissionsEgress' in r:
+                r['OutboundRules'] = {}
+                r['OutboundRules']['IpPermissionsEgress'] = json.dumps(r['IpPermissionsEgress'])
+            results.append(r)
+        return results
+
+
+@RouteTable.filter_registry.register('data-format')
+class RouteTableDataFormatFilter(Filter):
+
+    schema = type_schema('data-format', )
+
+    def process(self, resources, event=None):
+        results = []
+        for r in resources:
+            if 'Routes' in r:
+                r['RouteTable'] = {}
+                r['RouteTable']['Routes'] = json.dumps(r['Routes'])
+            if 'Associations' in r:
+                r['SubnetAssociations'] = {}
+                r['SubnetAssociations']['Associations'] = json.dumps(r['Associations'])
             results.append(r)
         return results
