@@ -26,6 +26,8 @@ from c7n.resources.iam import CredentialReport
 from c7n.resources.securityhub import OtherResourcePostFinding
 
 from .aws import shape_validate, Arn
+from c7n.policy import PolicyCollection
+from c7n.resources.aws import AWS
 
 filters = FilterRegistry('aws.account.filters')
 actions = ActionRegistry('aws.account.actions')
@@ -2431,3 +2433,46 @@ class IAMAccountSecurityHubEnabled(Filter):
             security_hub_enabled['SecurityHubEnabled'] = True
         resources[0]['c7n:security_hub'] = security_hub_enabled
         return resources
+
+
+@filters.register('fetch-access-analyzer-all-regions')
+class FetchAccessAnalyzerAllRegions(Filter):
+
+    permissions = ('ec2:DescribeRegions',)
+
+    schema = type_schema('fetch-access-analyser-all-regions')
+
+    def process(self, resources, event=None):
+        original = PolicyCollection.from_data(
+            {
+                "policies": [
+                    {
+                        "name": "account-policy",
+                        "resource": "account",
+                        "filters": [
+                            {
+                                "type": "access-analyzer",
+                                "key": "status",
+                                "value": "ACTIVE",
+                                "op": "eq"
+
+                            }
+                        ]
+                    }
+                ]
+            },
+            self.manager.config,
+            self.manager.session_factory,
+        )
+        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config)
+        [p.validate() for p in policy_collection]
+        resources[0]['analyzers'] ={}
+        for p in policy_collection:
+            policy_name, policy_region = p.name, p.options.region
+            res = p.run() or []
+            if len(res) > 0:
+                resources[0]['analyzers'][policy_region] = True
+            else:
+                resources[0]['analyzers'][policy_region] = False
+        return resources
+
