@@ -2435,12 +2435,10 @@ class IAMAccountSecurityHubEnabled(Filter):
         return resources
 
 
-@filters.register('fetch-access-analyzer-all-regions')
+@Account.filter_registry.register('has-access-analyzer')
 class FetchAccessAnalyzerAllRegions(Filter):
 
-    permissions = ('ec2:DescribeRegions',)
-
-    schema = type_schema('fetch-access-analyser-all-regions')
+    schema = type_schema('has-access-analyzer')
 
     def process(self, resources, event=None):
         original = PolicyCollection.from_data(
@@ -2466,13 +2464,20 @@ class FetchAccessAnalyzerAllRegions(Filter):
         )
         policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config)
         [p.validate() for p in policy_collection]
-        resources[0]['analyzers'] ={}
+        resources[0]['analyzers'] = {}
         for p in policy_collection:
             policy_name, policy_region = p.name, p.options.region
-            res = p.run() or []
-            if len(res) > 0:
-                resources[0]['analyzers'][policy_region] = True
-            else:
-                resources[0]['analyzers'][policy_region] = False
+            try :
+                res = p.run() or []
+                if len(res) > 0:
+                    resources[0]['analyzers'][policy_region] = True
+                else:
+                    resources[0]['analyzers'][policy_region] = False
+            except Exception as e:
+                self.log.error(
+                    "Error while collecting from region",
+                    policy=policy_name,
+                    region=policy_region,
+                    err=e,
+                )
         return resources
-
