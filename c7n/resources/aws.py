@@ -802,6 +802,34 @@ class AWS(Provider):
             sorted(policies, key=operator.attrgetter('options.region')),
             options)
 
+    def initialize_policies_all_regions(self, policy_collection, options):
+        from c7n.policy import Policy, PolicyCollection
+        policies = []
+        enabled_regions = {
+            r['RegionName'] for r in
+            get_profile_session(options).client('ec2').describe_regions(
+                Filters=[{'Name': 'opt-in-status',
+                          'Values': ['opt-in-not-required', 'opted-in']}]
+            ).get('Regions')}
+        for p in policy_collection:
+            for region in enabled_regions:
+                options_copy = copy.copy(options)
+                options_copy.region = str(region)
+
+                if len(options.regions) > 1 or 'all' in options.regions and getattr(
+                        options, 'output_dir', None):
+                    options_copy.output_dir = join_output(options.output_dir, region)
+                policies.append(
+                    Policy(p.data, options_copy,
+                           session_factory=policy_collection.session_factory()))
+
+        return PolicyCollection(
+            # order policies by region to minimize local session invalidation.
+            # note relative ordering of policies must be preserved, python sort
+            # is stable.
+            sorted(policies, key=operator.attrgetter('options.region')),
+            options)
+
 
 def join_output(output_dir, suffix):
     if '{region}' in output_dir:
