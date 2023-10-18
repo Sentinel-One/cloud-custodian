@@ -2462,7 +2462,8 @@ class FetchAccessAnalyzerAllRegions(Filter):
             self.manager.config,
             self.manager.session_factory,
         )
-        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config)
+        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config,
+                                                                  self.manager.session_factory)
         [p.validate() for p in policy_collection]
         resources[0]['AccessAnalyzers'] = {}
         all_region_enabled = True
@@ -2539,7 +2540,8 @@ class ConfigEnabledAllRegion(Filter):
             self.manager.config,
             self.manager.session_factory,
         )
-        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config)
+        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config,
+                                                                  self.manager.session_factory)
         [p.validate() for p in policy_collection]
         config_resources = []
         all_regions = []
