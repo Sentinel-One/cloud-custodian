@@ -29,7 +29,7 @@ from c7n.credentials import SessionFactory
 from c7n.config import Bag
 from c7n.exceptions import InvalidOutputConfig, PolicyValidationError
 from c7n.log import CloudWatchLogHandler
-from c7n.utils import parse_url_config, backoff_delays
+from c7n.utils import parse_url_config, backoff_delays, local_session
 
 from .resource_map import ResourceMap
 
@@ -802,12 +802,13 @@ class AWS(Provider):
             sorted(policies, key=operator.attrgetter('options.region')),
             options)
 
-    def initialize_policies_all_regions(self, policy_collection, options):
+    def initialize_policies_all_regions(self, policy_collection, options, session_factory):
         from c7n.policy import Policy, PolicyCollection
         policies = []
+        client = local_session(session_factory).client('ec2')
         enabled_regions = {
             r['RegionName'] for r in
-            get_profile_session(options).client('ec2').describe_regions(
+            client.describe_regions(
                 Filters=[{'Name': 'opt-in-status',
                           'Values': ['opt-in-not-required', 'opted-in']}]
             ).get('Regions')}
