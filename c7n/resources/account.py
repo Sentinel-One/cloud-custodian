@@ -2482,3 +2482,91 @@ class FetchAccessAnalyzerAllRegions(Filter):
                 )
         resources[0]['AccessAnalyzers']["AllRegionEnabled"] = all_region_enabled
         return resources
+
+
+@filters.register('check-config-with-status')
+class ConfigWithStatus(Filter):
+    permissions = ('config:DescribeDeliveryChannels',
+                   'config:DescribeConfigurationRecorders',
+                   'config:DescribeConfigurationRecorderStatus')
+    schema = type_schema('has-access-analyzer')
+
+    def process(self, resources, event=None):
+        client = local_session(
+            self.manager.session_factory).client('config')
+
+        config_recorders = client.describe_configuration_recorders()['ConfigurationRecorders']
+        config_recorder_status = client.describe_configuration_recorder_status()['ConfigurationRecordersStatus']
+        for recorder in config_recorders:
+            if 'resourceTypes' in recorder['recordingGroup']:
+                del recorder['recordingGroup']['resourceTypes']
+            if 'exclusionByResourceTypes' in recorder['recordingGroup']:
+                del recorder['recordingGroup']['exclusionByResourceTypes']
+            recorder_name = recorder.get('name')
+            for status in config_recorder_status:
+                if status.get('name') == recorder_name:
+                    del status['name']
+                    recorder['status'] = status
+                    break
+        resources[0]['c7n:config_recorders'] = config_recorders
+        return resources
+
+
+@filters.register('check-config-all-region')
+class ConfigEnabledAllRegion(Filter):
+    schema = type_schema('check-config-all-region')
+
+    permissions = ('config:DescribeDeliveryChannels',
+                   'config:DescribeConfigurationRecorders',
+                   'config:DescribeConfigurationRecorderStatus')
+
+    def process(self, resources, event=None):
+
+        original = PolicyCollection.from_data(
+            {
+                "policies": [
+                    {
+                        "name": "account-check-config",
+                        "resource": "account",
+                        "filters": [
+                            {
+                                "type": "check-config-with-status"
+                            }
+                        ]
+                    }
+                ]
+            },
+            self.manager.config,
+            self.manager.session_factory,
+        )
+        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config)
+        [p.validate() for p in policy_collection]
+        config_resources = []
+        all_regions = []
+        for p in policy_collection:
+            policy_name, policy_region = p.name, p.options.region
+            try:
+                res = p.run() or []
+                if len(res) > 0 and len(res[0]['c7n:config_recorders']) > 0:
+
+                    for recorder in res[0]['c7n:config_recorders']:
+                        all_regions.append("true")
+                        config_resources.append(recorder)
+                else:
+                    all_regions.append("false")
+            except Exception as e:
+                self.log.error(
+                    "Error while collecting from region",
+                    policy=policy_name,
+                    region=policy_region,
+                    err=e,
+                )
+        if "false" in all_regions:
+            is_all_region_enabled = "false"
+        else:
+            is_all_region_enabled = "true"
+
+        for r in config_resources:
+            r["is_all_region_enabled"] = is_all_region_enabled
+        resources[0]['c7n:check-config'] = config_resources
+        return resources
