@@ -2531,7 +2531,10 @@ class ConfigEnabledAllRegion(Filter):
                         "resource": "account",
                         "filters": [
                             {
-                                "type": "check-config-with-status"
+                                "type": "is_config_service_enabled_all_regions",
+                                "all-resources": "true",
+                                "global-resources": "true",
+                                "running": "true"
                             }
                         ]
                     }
@@ -2543,19 +2546,14 @@ class ConfigEnabledAllRegion(Filter):
         policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config,
                                                                   self.manager.session_factory)
         [p.validate() for p in policy_collection]
-        config_resources = []
-        all_regions = []
+        enabled_all_regions = True
         for p in policy_collection:
             policy_name, policy_region = p.name, p.options.region
             try:
                 res = p.run() or []
-                if len(res) > 0 and len(res[0]['c7n:config_recorders']) > 0:
-
-                    for recorder in res[0]['c7n:config_recorders']:
-                        all_regions.append("true")
-                        config_resources.append(recorder)
-                else:
-                    all_regions.append("false")
+                if len(res) == 0 :
+                    enabled_all_regions = False
+                    break;
             except Exception as e:
                 self.log.error(
                     "Error while collecting from region",
@@ -2563,12 +2561,47 @@ class ConfigEnabledAllRegion(Filter):
                     region=policy_region,
                     err=e,
                 )
-        if "false" in all_regions:
-            is_all_region_enabled = "false"
-        else:
-            is_all_region_enabled = "true"
-
-        for r in config_resources:
-            r["is_all_region_enabled"] = is_all_region_enabled
-        resources[0]['c7n:check-config'] = config_resources
+        resources[0]["ConfigService"] = {}
+        resources[0]["ConfigService"]["AllRegionEnabled"] = enabled_all_regions
         return resources
+
+
+@filters.register('is_config_service_enabled_all_regions')
+class EnabledConfigServiceAllRegions(Filter):
+
+    schema = type_schema(
+        'check-config', **{
+            'all-resources': {'type': 'boolean'},
+            'running': {'type': 'boolean'},
+            'global-resources': {'type': 'boolean'}})
+
+    permissions = ('config:DescribeDeliveryChannels',
+                   'config:DescribeConfigurationRecorders',
+                   'config:DescribeConfigurationRecorderStatus')
+
+    def process(self, resources, event=None):
+        client = local_session(
+            self.manager.session_factory).client('config')
+        channels = client.describe_delivery_channels()[
+            'DeliveryChannels']
+        recorders = client.describe_configuration_recorders()[
+            'ConfigurationRecorders']
+        resources[0]['c7n:config_recorders'] = recorders
+        resources[0]['c7n:config_channels'] = channels
+        if self.data.get('global-resources'):
+            recorders = [
+                r for r in recorders
+                if r['recordingGroup'].get('includeGlobalResourceTypes')]
+        if self.data.get('all-resources'):
+            recorders = [r for r in recorders
+                         if r['recordingGroup'].get('allSupported')]
+        if self.data.get('running', True) and recorders:
+            status = {s['name']: s for
+                      s in client.describe_configuration_recorder_status(
+            )['ConfigurationRecordersStatus']}
+            resources[0]['c7n:config_status'] = status
+            recorders = [r for r in recorders if status[r['name']]['recording'] and
+                status[r['name']]['lastStatus'].lower() in ('pending', 'success')]
+        if channels and recorders:
+            return resources
+        return []
