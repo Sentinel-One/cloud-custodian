@@ -2631,3 +2631,51 @@ class GetAccountOrganization(Filter):
         if self.annotation_key not in resources[0]:
             self.get_org_info(resources[0])
         return resources
+
+
+@filters.register('check-guardduty-enabled-all-region')
+class GuardDutyEnabledAllRegion(Filter):
+    schema = type_schema('check-guardduty-enabled-all-region')
+
+    def process(self, resources, event=None):
+
+        original = PolicyCollection.from_data(
+            {
+                "policies": [
+                    {
+                        "name": "guardduty-enabled",
+                        "resource": "account",
+                        "filters": [
+                            {
+                                "type": "guard-duty",
+                                "Detector.Status": "ENABLED"
+                            }
+                        ]
+                    }
+                ]
+            },
+            self.manager.config,
+            self.manager.session_factory,
+        )
+        policy_collection = AWS().initialize_policies_all_regions(original, self.manager.config,
+                                                                  self.manager.session_factory)
+        [p.validate() for p in policy_collection]
+        enabled_all_regions = True
+        for p in policy_collection:
+            policy_name, policy_region = p.name, p.options.region
+            try:
+                res = p.run() or []
+                if len(res) == 0:
+                    enabled_all_regions = False
+                    break;
+            except Exception as e:
+                self.log.error(
+                    "Error while collecting from region",
+                    policy=policy_name,
+                    region=policy_region,
+                    err=e,
+                )
+        resources[0]["c7n:guard-duty"] = {}
+        resources[0]["c7n:guard-duty"]["AllRegionEnabled"] = enabled_all_regions
+        return resources
+
