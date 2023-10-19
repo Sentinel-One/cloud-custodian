@@ -2605,3 +2605,29 @@ class EnabledConfigServiceAllRegions(Filter):
         if channels and recorders:
             return resources
         return []
+
+
+@filters.register('get-organization')
+class GetAccountOrganization(Filter):
+    schema = type_schema('get-organization')
+
+    annotation_key = 'c7n:org'
+
+    permissions = ('organizations:DescribeOrganization',)
+
+    def get_org_info(self, account):
+        client = local_session(
+            self.manager.session_factory).client('organizations')
+        try:
+            org_info = client.describe_organization().get('Organization')
+        except client.exceptions.AWSOrganizationsNotInUseException:
+            org_info = {}
+        except ClientError as e:
+            self.log.warning('organization filter error accessing org info %s', e)
+            org_info = {}
+        account[self.annotation_key] = org_info
+
+    def process(self, resources, event=None):
+        if self.annotation_key not in resources[0]:
+            self.get_org_info(resources[0])
+        return resources

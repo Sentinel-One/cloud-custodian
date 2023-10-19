@@ -10,7 +10,7 @@ import groovy.transform.Field
 @Field isRelease = false
 @Field isPRBuild = false
 
-@Field artVersion = "0.9.26.4.33"
+@Field artVersion = "0.9.26.4.34"
 
 timeout(activity: true, time: 10) {
     timestamps {
