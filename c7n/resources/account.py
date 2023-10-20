@@ -2675,7 +2675,6 @@ class GuardDutyEnabledAllRegion(Filter):
                     region=policy_region,
                     err=e,
                 )
-        resources[0]["c7n:guard-duty"] = {}
-        resources[0]["c7n:guard-duty"]["AllRegionEnabled"] = enabled_all_regions
+        resources[0]["GuardDuty"] = {}
+        resources[0]["GuardDuty"]["AllRegionEnabled"] = enabled_all_regions
         return resources
-
