@@ -2159,3 +2159,58 @@ class FetchSnapShotAttributesFilter(Filter):
             r['PubliclyAccessible'] = publicly_accessible
             results.append(r)
         return results
+
+
+@RDS.filter_registry.register('include-event-subscriptions')
+class FetchEventSubscriptionsFilter(Filter):
+    schema = type_schema('has-event-subscriptions', )
+    permissions = ('rds:DescribeEventSubscriptions',)
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('rds')
+        enabled_db_parameter_group_all = False
+        enabled_db_security_group_all = False
+        enabled_db_instance_all = False
+        enabled_db_cluster_all = False
+        event_subscriptions = client.describe_event_subscriptions()['EventSubscriptionsList']
+        event_subscriptions_with_source_ids = []
+        if len(event_subscriptions) > 0:
+            for event_subscription in event_subscriptions:
+                if 'SourceIdsList' not in event_subscription:
+                    if event_subscription['SourceType'] == 'db-parameter-group' and event_subscription['Enabled']:
+                        enabled_db_parameter_group_all = True
+                    if event_subscription['SourceType'] == 'db-security-group' and event_subscription['Enabled']:
+                        enabled_db_security_group_all = True
+                    if event_subscription['SourceType'] == 'db-instance' and event_subscription['Enabled']:
+                        enabled_db_instance_all = True
+                    if event_subscription['SourceType'] == 'db-cluster' and event_subscription['Enabled']:
+                        enabled_db_cluster_all = True
+                else:
+                    event_subscriptions_with_source_ids.append(event_subscription)
+        results = []
+        for r in resources:
+            r['EventSubscriptions'] = {}
+            r['EventSubscriptions']['EnabledDBParameterGroup'] = enabled_db_parameter_group_all
+            r['EventSubscriptions']['EnabledDBSecurityGroup'] = enabled_db_security_group_all
+            r['EventSubscriptions']['EnabledDBInstance'] = enabled_db_instance_all
+            r['EventSubscriptions']['EnabledDBCluster'] = enabled_db_cluster_all
+            if len(event_subscriptions_with_source_ids) > 0:
+                for event_subscription in event_subscriptions_with_source_ids:
+                    source_ids = event_subscription['SourceIdsList']
+                    for source_id in source_ids:
+                        if r['DBInstanceIdentifier'] == source_id:
+                            if event_subscription['SourceType'] == 'db-parameter-group' and \
+                                    event_subscription['Enabled']:
+                                r['EventSubscriptions']['EnabledDBParameterGroup'] = True
+                            if event_subscription['SourceType'] == 'db-security-group' and \
+                                    event_subscription['Enabled']:
+                                r['EventSubscriptions']['EnabledDBSecurityGroup'] = True
+                            if event_subscription['SourceType'] == 'db-instance' and \
+                                    event_subscription['Enabled']:
+                                r['EventSubscriptions']['EnabledDBInstance'] = True
+                            if event_subscription['SourceType'] == 'db-cluster' and \
+                                    event_subscription['Enabled']:
+                                r['EventSubscriptions']['EnabledDBCluster'] = True
+                            break;
+            results.append(r)
+        return results
