@@ -2105,7 +2105,7 @@ class DbOptionGroups(ValueFilter):
                     ogcache[og] = option_group
 
                 cache.save(cache_key, ogcache[og])
-    
+
         return ogcache
 
     def process(self, resources, event=None):
@@ -2127,4 +2127,35 @@ class DbOptionGroups(ValueFilter):
                     results.append(resource)
                     break
 
+        return results
+
+
+@RDSSnapshot.filter_registry.register('is-publicly-accessible')
+class FetchSnapShotAttributesFilter(Filter):
+
+    schema = type_schema('fetch-snapshot-attributes',)
+    permissions = ('rds:DescribeDBSnapshotAttributes',)
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('rds')
+        results = []
+        for r in resources:
+            publicly_accessible = False
+            response = client.describe_db_snapshot_attributes(
+                DBSnapshotIdentifier=r['DBSnapshotIdentifier']
+            )
+            if 'DBSnapshotAttributesResult' in response:
+                db_snap_shot_attributes = response['DBSnapshotAttributesResult']['DBSnapshotAttributes']
+                if len(db_snap_shot_attributes) >0:
+                    for db_snap_shot_attribute in db_snap_shot_attributes:
+                        if db_snap_shot_attribute['AttributeName'] == 'restore':
+                            attribute_values = db_snap_shot_attribute['AttributeValues']
+                            if len(attribute_values) > 0:
+                                for attribute_value in attribute_values:
+                                    if attribute_value == 'all':
+                                        publicly_accessible = True
+                                        break;
+
+            r['PubliclyAccessible'] = publicly_accessible
+            results.append(r)
         return results
