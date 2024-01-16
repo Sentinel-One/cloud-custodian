@@ -470,7 +470,7 @@ def assemble_bucket(item):
                 # For other error types we raise and bail policy execution.
                 if e.response['Error']['Code'] == 'AccessDenied':
                     b.setdefault('c7n:DeniedMethods', []).append(m)
-                    continue
+                    break
                 raise
         # As soon as we learn location (which generally works)
         if k == 'Location' and v is not None:
