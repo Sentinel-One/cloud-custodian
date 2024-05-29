@@ -3600,8 +3600,7 @@ class CalculateFieldsFilter(Filter):
                 if 'MfaDelete' not in r['VersioningConfiguration']:
                     r['VersioningConfiguration']['MfaDelete'] = "Disabled"
             except KeyError as ke:
-                self.log.error("Bucket:%s unable to invoke method:calculate_fields error:%s", bucket_name,
-                               ke.response['Error']['Message'])
+                self.log.error("Bucket:%s unable to invoke method:calculate_fields error:%s", bucket_name, ke)
             r['BucketLocation'] = bucket_location
             res.append(r)
         return res
